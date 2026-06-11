@@ -5,6 +5,7 @@ export declare class PostgreSQLAdapter implements DBAdapter {
     constructor(connectionString: string);
     connect(): Promise<void>;
     disconnect(): Promise<void>;
+    cleanupTestData(prefix: string): Promise<void>;
     healthCheck(): Promise<boolean>;
     character: {
         getById: (id: string) => Promise<Character | null>;

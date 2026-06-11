@@ -15,18 +15,26 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createLLMProvider = createLLMProvider;
-const gemini_provider_1 = require("./gemini-provider");
+const cerebras_provider_1 = require("./cerebras-provider");
 const mock_provider_1 = require("./mock-provider");
+const cascade_provider_1 = require("./cascade-provider");
 function createLLMProvider() {
     const provider = process.env.LLM_PROVIDER || 'mock';
-    const apiKey = process.env.LLM_API_KEY || '';
-    const model = process.env.LLM_MODEL || 'gemini-2.0-flash';
-    if (provider === 'gemini' && apiKey) {
-        return new gemini_provider_1.GeminiProvider(apiKey, model);
+    const geminiKey = process.env.LLM_API_KEY || '';
+    const geminiModel = process.env.LLM_MODEL || 'gemini-2.0-flash';
+    const cerebrasKey = process.env.CEREBRAS_API_KEY || '';
+    const cerebrasModel = process.env.CEREBRAS_MODEL || 'llama3.1-8b';
+    if (provider === 'gemini' && geminiKey) {
+        return new cascade_provider_1.CascadeLLMProvider(geminiKey, cerebrasKey || undefined);
+    }
+    if (provider === 'cerebras' && cerebrasKey) {
+        return new cerebras_provider_1.CerebrasProvider(cerebrasKey, cerebrasModel);
     }
     return new mock_provider_1.MockLLMProvider();
 }
 __exportStar(require("./provider"), exports);
 __exportStar(require("./gemini-provider"), exports);
+__exportStar(require("./cerebras-provider"), exports);
 __exportStar(require("./mock-provider"), exports);
+__exportStar(require("./cascade-provider"), exports);
 //# sourceMappingURL=index.js.map

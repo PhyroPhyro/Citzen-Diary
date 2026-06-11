@@ -37,6 +37,7 @@ const app_1 = require("./api/app");
 const db_1 = require("./db");
 const queue_1 = require("./queue");
 const llm_1 = require("./llm");
+const world_tick_scheduler_1 = require("./core/tick/world-tick-scheduler");
 async function checkPostgreSQL() {
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl)
@@ -108,6 +109,8 @@ async function bootstrap() {
         }
         process.exit(1);
     }
+    const scheduler = new world_tick_scheduler_1.WorldTickScheduler(db, queue, llm);
+    scheduler.start();
     const app = (0, app_1.setupAPI)({ db, queue, llm });
     const PORT = process.env.PORT || 3000;
     const server = app.listen(PORT, () => {
@@ -118,6 +121,7 @@ async function bootstrap() {
     process.on('SIGINT', async () => {
         console.log('[Server] Shutting down...');
         server.close();
+        scheduler.stop();
         await queue.disconnect();
         await db.disconnect();
         process.exit(0);
@@ -125,6 +129,7 @@ async function bootstrap() {
     process.on('SIGTERM', async () => {
         console.log('[Server] Shutting down...');
         server.close();
+        scheduler.stop();
         await queue.disconnect();
         await db.disconnect();
         process.exit(0);

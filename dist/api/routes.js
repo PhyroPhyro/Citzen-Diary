@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createRoutes = createRoutes;
 const express_1 = require("express");
@@ -512,6 +545,82 @@ function createRoutes(deps) {
         }
         catch (error) {
             console.error('[API] Error reevaluating specialization:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/admin/quota', async (_req, res) => {
+        try {
+            const provider = process.env.LLM_PROVIDER || 'mock';
+            const geminiKey = process.env.LLM_API_KEY || '';
+            const cerebrasKey = process.env.CEREBRAS_API_KEY || '';
+            const llmType = llm.constructor.name;
+            const isCascade = llmType === 'CascadeLLMProvider';
+            const isCerebras = llmType === 'CerebrasProvider';
+            const isMock = llmType === 'MockLLMProvider';
+            let activeProvider = 'mock';
+            if (isCascade) {
+                activeProvider = llm.activeProvider || 'gemini';
+            }
+            else if (isCerebras) {
+                activeProvider = 'cerebras';
+            }
+            let geminiStatus = { configured: !!geminiKey, quotaExceeded: false, error: null };
+            let cerebrasStatus = { configured: !!cerebrasKey, quotaExceeded: false, error: null };
+            if (geminiKey) {
+                try {
+                    const { GoogleGenerativeAI } = await Promise.resolve().then(() => __importStar(require('@google/generative-ai')));
+                    const genAI = new GoogleGenerativeAI(geminiKey);
+                    const model = process.env.LLM_MODEL || 'gemini-2.0-flash';
+                    await genAI.getGenerativeModel({ model }).generateContent('test');
+                }
+                catch (error) {
+                    const msg = String(error);
+                    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+                        geminiStatus.quotaExceeded = true;
+                        geminiStatus.error = msg.substring(0, 300);
+                    }
+                    else {
+                        geminiStatus.error = msg.substring(0, 300);
+                    }
+                }
+            }
+            if (cerebrasKey) {
+                try {
+                    const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${cerebrasKey}`,
+                        },
+                        body: JSON.stringify({
+                            model: process.env.CEREBRAS_MODEL || 'llama3.1-8b',
+                            messages: [{ role: 'user', content: 'test' }],
+                            max_tokens: 10,
+                        }),
+                    });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        cerebrasStatus.quotaExceeded = response.status === 429;
+                        cerebrasStatus.error = errorText.substring(0, 300);
+                    }
+                }
+                catch (error) {
+                    cerebrasStatus.error = String(error).substring(0, 300);
+                }
+            }
+            res.json({
+                provider,
+                llmType,
+                activeProvider,
+                isCascade,
+                isCerebras,
+                isMock,
+                gemini: geminiStatus,
+                cerebras: cerebrasStatus,
+            });
+        }
+        catch (error) {
+            console.error('[API] Error checking quota:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     });

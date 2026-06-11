@@ -17,6 +17,15 @@ class PostgreSQLAdapter {
         await this.pool.end();
         console.log('[DB] PostgreSQL adapter disconnected');
     }
+    async cleanupTestData(prefix) {
+        const likePrefix = `${prefix}%`;
+        await this.pool.query('DELETE FROM diary_entries WHERE character_id IN (SELECT id FROM characters WHERE name LIKE $1)', [likePrefix]);
+        await this.pool.query('DELETE FROM milestones WHERE character_id IN (SELECT id FROM characters WHERE name LIKE $1)', [likePrefix]);
+        await this.pool.query('DELETE FROM relations WHERE character_id IN (SELECT id FROM characters WHERE name LIKE $1)', [likePrefix]);
+        await this.pool.query('DELETE FROM player_suggestions WHERE character_id IN (SELECT id FROM characters WHERE name LIKE $1)', [likePrefix]);
+        await this.pool.query('DELETE FROM characters WHERE name LIKE $1', [likePrefix]);
+        await this.pool.query("DELETE FROM npcs WHERE name LIKE $1", [likePrefix]);
+    }
     async healthCheck() {
         try {
             await this.pool.query('SELECT 1');

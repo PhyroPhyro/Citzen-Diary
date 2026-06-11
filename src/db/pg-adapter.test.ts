@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PostgreSQLAdapter } from './pg-adapter';
 
 const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@localhost:5432/citizen_diary';
+const TEST_PREFIX = '__test__';
 
 describe('PostgreSQLAdapter', () => {
   let adapter: PostgreSQLAdapter;
@@ -12,7 +13,12 @@ describe('PostgreSQLAdapter', () => {
   });
 
   afterAll(async () => {
+    await adapter.cleanupTestData(TEST_PREFIX);
     await adapter.disconnect();
+  });
+
+  beforeEach(async () => {
+    await adapter.cleanupTestData(TEST_PREFIX);
   });
 
   describe('healthCheck', () => {
@@ -25,14 +31,14 @@ describe('PostgreSQLAdapter', () => {
   describe('character', () => {
     it('creates a character with defaults', async () => {
       const character = await adapter.character.create({
-        name: 'Test Character',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Test Character`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
       expect(character.id).toBeDefined();
-      expect(character.name).toBe('Test Character');
-      expect(character.playerId).toBe('test-player');
+      expect(character.name).toBe(`${TEST_PREFIX}_Test Character`);
+      expect(character.playerId).toBe(`${TEST_PREFIX}_test-player`);
       expect(character.vocation).toBe('andarilho');
       expect(character.faith).toBe(5);
       expect(character.isNpc).toBe(false);
@@ -42,14 +48,15 @@ describe('PostgreSQLAdapter', () => {
 
     it('gets a character by id', async () => {
       const created = await adapter.character.create({
-        name: 'Get Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Get Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'lavrador',
       });
 
+
       const found = await adapter.character.getById(created.id);
       expect(found).not.toBeNull();
-      expect(found?.name).toBe('Get Test');
+      expect(found?.name).toBe(`${TEST_PREFIX}_Get Test`);
     });
 
     it('returns null for non-existent character', async () => {
@@ -59,56 +66,59 @@ describe('PostgreSQLAdapter', () => {
 
     it('updates a character', async () => {
       const created = await adapter.character.create({
-        name: 'Update Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Update Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
+
       const updated = await adapter.character.update(created.id, {
-        name: 'Updated Name',
+        name: `${TEST_PREFIX}_Updated Name`,
         faith: 7,
       });
 
-      expect(updated.name).toBe('Updated Name');
+      expect(updated.name).toBe(`${TEST_PREFIX}_Updated Name`);
       expect(updated.faith).toBe(7);
     });
 
     it('gets all active characters', async () => {
-      await adapter.character.create({
-        name: 'Active Test 1',
-        playerId: 'test-player',
+      const c = await adapter.character.create({
+        name: `${TEST_PREFIX}_Active Test 1`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
+
 
       const active = await adapter.character.getAllActive();
       expect(active.length).toBeGreaterThan(0);
-      expect(active.some((c) => c.name === 'Active Test 1')).toBe(true);
+      expect(active.some((ch) => ch.name === `${TEST_PREFIX}_Active Test 1`)).toBe(true);
     });
 
     it('gets characters by player id', async () => {
-      const playerId = `player-${Date.now()}`;
-      await adapter.character.create({
-        name: 'Player Char 1',
+      const playerId = `${TEST_PREFIX}_player-${Date.now()}`;
+      const c1 = await adapter.character.create({
+        name: `${TEST_PREFIX}_Player Char 1`,
         playerId,
         vocation: 'andarilho',
       });
-      await adapter.character.create({
-        name: 'Player Char 2',
+
+      const c2 = await adapter.character.create({
+        name: `${TEST_PREFIX}_Player Char 2`,
         playerId,
         vocation: 'lavrador',
       });
 
       const chars = await adapter.character.getByPlayerId(playerId);
       expect(chars.length).toBe(2);
-      expect(chars.every((c) => c.playerId === playerId)).toBe(true);
+      expect(chars.every((ch) => ch.playerId === playerId)).toBe(true);
     });
   });
 
   describe('diary', () => {
     it('creates a diary entry', async () => {
       const character = await adapter.character.create({
-        name: 'Diary Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Diary Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -128,8 +138,8 @@ describe('PostgreSQLAdapter', () => {
 
     it('gets diary entries by character id', async () => {
       const character = await adapter.character.create({
-        name: 'Diary Get Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Diary Get Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -157,8 +167,8 @@ describe('PostgreSQLAdapter', () => {
 
     it('enforces diary limit', async () => {
       const character = await adapter.character.create({
-        name: 'Diary Limit Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Diary Limit Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -182,8 +192,8 @@ describe('PostgreSQLAdapter', () => {
   describe('milestones', () => {
     it('creates a milestone', async () => {
       const character = await adapter.character.create({
-        name: 'Milestone Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Milestone Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -204,8 +214,8 @@ describe('PostgreSQLAdapter', () => {
 
     it('gets milestones by character id', async () => {
       const character = await adapter.character.create({
-        name: 'Milestone Get Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Milestone Get Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -227,36 +237,38 @@ describe('PostgreSQLAdapter', () => {
   describe('npcs', () => {
     it('creates an NPC', async () => {
       const npc = await adapter.npcs.create({
-        name: 'Test NPC',
+        name: `${TEST_PREFIX}_Test NPC`,
         locationId: 'veldra',
         occupation: 'Merchant',
       });
 
+
       expect(npc.id).toBeDefined();
-      expect(npc.name).toBe('Test NPC');
+      expect(npc.name).toBe(`${TEST_PREFIX}_Test NPC`);
       expect(npc.isNamedByPlayer).toBe(false);
     });
 
     it('updates an NPC', async () => {
       const npc = await adapter.npcs.create({
-        name: 'Update NPC Test',
+        name: `${TEST_PREFIX}_Update NPC Test`,
         locationId: 'veldra',
       });
 
+
       const updated = await adapter.npcs.update(npc.id, {
-        name: 'Updated NPC',
+        name: `${TEST_PREFIX}_Updated NPC`,
         isNamedByPlayer: true,
         namedByPlayerId: 'player-1',
         namedByPlayerName: 'Hero',
       });
 
-      expect(updated.name).toBe('Updated NPC');
+      expect(updated.name).toBe(`${TEST_PREFIX}_Updated NPC`);
       expect(updated.isNamedByPlayer).toBe(true);
     });
 
     it('gets all NPCs', async () => {
       await adapter.npcs.create({
-        name: 'All NPCs Test',
+        name: `${TEST_PREFIX}_All NPCs Test`,
         locationId: 'veldra',
       });
 
@@ -268,8 +280,8 @@ describe('PostgreSQLAdapter', () => {
   describe('relations', () => {
     it('creates a relation', async () => {
       const character = await adapter.character.create({
-        name: 'Relation Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Relation Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -287,8 +299,8 @@ describe('PostgreSQLAdapter', () => {
 
     it('gets relations by character id', async () => {
       const character = await adapter.character.create({
-        name: 'Relation Get Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Relation Get Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -308,8 +320,8 @@ describe('PostgreSQLAdapter', () => {
   describe('suggestions', () => {
     it('creates a suggestion', async () => {
       const character = await adapter.character.create({
-        name: 'Suggestion Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Suggestion Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -325,8 +337,8 @@ describe('PostgreSQLAdapter', () => {
 
     it('gets pending suggestion', async () => {
       const character = await adapter.character.create({
-        name: 'Pending Suggestion Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Pending Suggestion Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 
@@ -343,8 +355,8 @@ describe('PostgreSQLAdapter', () => {
 
     it('marks suggestion as processed', async () => {
       const character = await adapter.character.create({
-        name: 'Mark Processed Test',
-        playerId: 'test-player',
+        name: `${TEST_PREFIX}_Mark Processed Test`,
+        playerId: `${TEST_PREFIX}_test-player`,
         vocation: 'andarilho',
       });
 

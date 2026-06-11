@@ -35,10 +35,18 @@ At the beginning of every session, verify external services before coding:
 
 2. **Check Redis**:
    ```powershell
-   redis-cli ping
+   node -e "const Redis = require('ioredis'); const r = new Redis('redis://localhost:6379'); r.ping().then(res => { console.log('Redis PONG:', res); r.disconnect(); }).catch(err => { console.error('Redis error:', err.message); r.disconnect(); });"
    ```
-   - If it fails, Redis is not running — start it via Windows Services or `redis-server`
+   - If it fails, Redis is not running — start it via Docker:
+     ```powershell
+     docker run -d --name citizen-diary-redis -p 6379:6379 redis
+     ```
+   - If a container named `citizen-diary-redis` already exists but is stopped, start it:
+     ```powershell
+     docker start citizen-diary-redis
+     ```
    - Expected response: `PONG`
+   - **ALWAYS auto-start Redis via Docker if it's not running and the .env has REDIS_URL set**
 
 3. **Verify .env**:
    - Ensure `DATABASE_URL` and `REDIS_URL` match the running services
@@ -75,6 +83,8 @@ At the beginning of every session, verify external services before coding:
 - **Tests are a completeness requirement** — a task is not done until tests pass
 - **Test pure functions first** — motor, modifiers, templates, questionnaire, classification
 - **Mock adapters for integration tests** — use stub adapters when DB/Queue aren't available
+- **ALL integration tests MUST use `__test__` prefix** for created data — cleanup runs automatically via `beforeEach` and `afterAll`
+- **ALWAYS use `MockLLMProvider` in tests** — never call real LLM APIs during test runs
 - **Test edge cases** — empty pools, zero values, boundary conditions, tie resolution
 - **Run tests at the end of significant tasks** — before marking any feature as complete
 
@@ -88,6 +98,7 @@ At the beginning of every session, verify external services before coding:
 | Diary | generateTemplateEntry | Verify template selection and tone suffix logic |
 | LLM Context | buildLLMContext | Verify prompt format and token structure |
 | Tick | calculateTickInterval | Test all absence time buckets |
+| LLM Cascade | Gemini → Cerebras → Mock fallback | MockLLMProvider always used in tests — never real APIs |
 
 ### Test Execution
 - Run `npm test` before committing any feature

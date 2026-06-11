@@ -11,6 +11,7 @@ const pg_adapter_1 = require("../db/pg-adapter");
 const stub_adapter_1 = require("../queue/stub-adapter");
 const mock_provider_1 = require("../llm/mock-provider");
 const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@localhost:5432/citizen_diary';
+const TEST_PREFIX = '__test__';
 function makeRequest(baseUrl, method, path, body) {
     return new Promise((resolve, reject) => {
         const url = new url_1.URL(path, baseUrl);
@@ -63,7 +64,11 @@ function makeRequest(baseUrl, method, path, body) {
     });
     (0, vitest_1.afterAll)(async () => {
         server.close();
+        await db.cleanupTestData(TEST_PREFIX);
         await db.disconnect();
+    });
+    (0, vitest_1.beforeEach)(async () => {
+        await db.cleanupTestData(TEST_PREFIX);
     });
     (0, vitest_1.describe)('GET /questionnaire', () => {
         (0, vitest_1.it)('returns all questions', async () => {
@@ -77,9 +82,9 @@ function makeRequest(baseUrl, method, path, body) {
     (0, vitest_1.describe)('POST /character/create', () => {
         (0, vitest_1.it)('creates a character with valid data', async () => {
             const characterData = {
-                name: 'API Test Character',
+                name: `${TEST_PREFIX}_API Test Character`,
                 description: 'A brave adventurer',
-                playerId: 'api-test-player',
+                playerId: `${TEST_PREFIX}_api-test-player`,
                 vocation: 'andarilho',
                 answers: [
                     { questionId: 1, optionLetter: 'C' },
@@ -98,7 +103,7 @@ function makeRequest(baseUrl, method, path, body) {
             const data = await res.json();
             (0, vitest_1.expect)(res.status).toBe(201);
             (0, vitest_1.expect)(data.message).toBe('Character created');
-            (0, vitest_1.expect)(data.character.name).toBe('API Test Character');
+            (0, vitest_1.expect)(data.character.name).toBe(`${TEST_PREFIX}_API Test Character`);
             (0, vitest_1.expect)(data.character.vocation).toBe('andarilho');
             (0, vitest_1.expect)(data.character.traits).toBeDefined();
         });

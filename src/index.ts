@@ -2,6 +2,7 @@ import { setupAPI } from './api/app';
 import { createDBAdapter, PostgreSQLAdapter } from './db';
 import { createQueueAdapter, BullMQAdapter } from './queue';
 import { createLLMProvider } from './llm';
+import { WorldTickScheduler } from './core/tick/world-tick-scheduler';
 
 async function checkPostgreSQL(): Promise<boolean> {
   const dbUrl = process.env.DATABASE_URL;
@@ -76,6 +77,9 @@ async function bootstrap() {
     process.exit(1);
   }
 
+  const scheduler = new WorldTickScheduler(db, queue, llm);
+  scheduler.start();
+
   const app = setupAPI({ db, queue, llm });
 
   const PORT = process.env.PORT || 3000;
@@ -89,6 +93,7 @@ async function bootstrap() {
   process.on('SIGINT', async () => {
     console.log('[Server] Shutting down...');
     server.close();
+    scheduler.stop();
     await queue.disconnect();
     await db.disconnect();
     process.exit(0);
@@ -97,6 +102,7 @@ async function bootstrap() {
   process.on('SIGTERM', async () => {
     console.log('[Server] Shutting down...');
     server.close();
+    scheduler.stop();
     await queue.disconnect();
     await db.disconnect();
     process.exit(0);

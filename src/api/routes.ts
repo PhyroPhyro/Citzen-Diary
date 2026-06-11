@@ -574,5 +574,83 @@ export function createRoutes(deps: AppDeps): Router {
     }
   });
 
+  router.get('/admin/quota', async (_req: Request, res: Response) => {
+    try {
+      const provider = process.env.LLM_PROVIDER || 'mock';
+      const geminiKey = process.env.LLM_API_KEY || '';
+      const cerebrasKey = process.env.CEREBRAS_API_KEY || '';
+
+      const llmType = llm.constructor.name;
+      const isCascade = llmType === 'CascadeLLMProvider';
+      const isCerebras = llmType === 'CerebrasProvider';
+      const isMock = llmType === 'MockLLMProvider';
+
+      let activeProvider = 'mock';
+      if (isCascade) {
+        activeProvider = (llm as any).activeProvider || 'gemini';
+      } else if (isCerebras) {
+        activeProvider = 'cerebras';
+      }
+
+      let geminiStatus = { configured: !!geminiKey, quotaExceeded: false, error: null as string | null };
+      let cerebrasStatus = { configured: !!cerebrasKey, quotaExceeded: false, error: null as string | null };
+
+      if (geminiKey) {
+        try {
+          const { GoogleGenerativeAI } = await import('@google/generative-ai');
+          const genAI = new GoogleGenerativeAI(geminiKey);
+          const model = process.env.LLM_MODEL || 'gemini-2.0-flash';
+          await genAI.getGenerativeModel({ model }).generateContent('test');
+        } catch (error: any) {
+          const msg = String(error);
+          if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+            geminiStatus.quotaExceeded = true;
+            geminiStatus.error = msg.substring(0, 300);
+          } else {
+            geminiStatus.error = msg.substring(0, 300);
+          }
+        }
+      }
+
+      if (cerebrasKey) {
+        try {
+          const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${cerebrasKey}`,
+            },
+            body: JSON.stringify({
+              model: process.env.CEREBRAS_MODEL || 'llama3.1-8b',
+              messages: [{ role: 'user', content: 'test' }],
+              max_tokens: 10,
+            }),
+          });
+          if (!response.ok) {
+            const errorText = await response.text();
+            cerebrasStatus.quotaExceeded = response.status === 429;
+            cerebrasStatus.error = errorText.substring(0, 300);
+          }
+        } catch (error: any) {
+          cerebrasStatus.error = String(error).substring(0, 300);
+        }
+      }
+
+      res.json({
+        provider,
+        llmType,
+        activeProvider,
+        isCascade,
+        isCerebras,
+        isMock,
+        gemini: geminiStatus,
+        cerebras: cerebrasStatus,
+      });
+    } catch (error) {
+      console.error('[API] Error checking quota:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   return router;
 }

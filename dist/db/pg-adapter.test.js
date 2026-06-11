@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const vitest_1 = require("vitest");
 const pg_adapter_1 = require("./pg-adapter");
 const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@localhost:5432/citizen_diary';
+const TEST_PREFIX = '__test__';
 (0, vitest_1.describe)('PostgreSQLAdapter', () => {
     let adapter;
     (0, vitest_1.beforeAll)(async () => {
@@ -10,7 +11,11 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         await adapter.connect();
     });
     (0, vitest_1.afterAll)(async () => {
+        await adapter.cleanupTestData(TEST_PREFIX);
         await adapter.disconnect();
+    });
+    (0, vitest_1.beforeEach)(async () => {
+        await adapter.cleanupTestData(TEST_PREFIX);
     });
     (0, vitest_1.describe)('healthCheck', () => {
         (0, vitest_1.it)('returns true when database is reachable', async () => {
@@ -21,13 +26,13 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
     (0, vitest_1.describe)('character', () => {
         (0, vitest_1.it)('creates a character with defaults', async () => {
             const character = await adapter.character.create({
-                name: 'Test Character',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Test Character`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             (0, vitest_1.expect)(character.id).toBeDefined();
-            (0, vitest_1.expect)(character.name).toBe('Test Character');
-            (0, vitest_1.expect)(character.playerId).toBe('test-player');
+            (0, vitest_1.expect)(character.name).toBe(`${TEST_PREFIX}_Test Character`);
+            (0, vitest_1.expect)(character.playerId).toBe(`${TEST_PREFIX}_test-player`);
             (0, vitest_1.expect)(character.vocation).toBe('andarilho');
             (0, vitest_1.expect)(character.faith).toBe(5);
             (0, vitest_1.expect)(character.isNpc).toBe(false);
@@ -36,13 +41,13 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('gets a character by id', async () => {
             const created = await adapter.character.create({
-                name: 'Get Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Get Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'lavrador',
             });
             const found = await adapter.character.getById(created.id);
             (0, vitest_1.expect)(found).not.toBeNull();
-            (0, vitest_1.expect)(found?.name).toBe('Get Test');
+            (0, vitest_1.expect)(found?.name).toBe(`${TEST_PREFIX}_Get Test`);
         });
         (0, vitest_1.it)('returns null for non-existent character', async () => {
             const found = await adapter.character.getById('00000000-0000-0000-0000-000000000000');
@@ -50,49 +55,49 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('updates a character', async () => {
             const created = await adapter.character.create({
-                name: 'Update Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Update Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const updated = await adapter.character.update(created.id, {
-                name: 'Updated Name',
+                name: `${TEST_PREFIX}_Updated Name`,
                 faith: 7,
             });
-            (0, vitest_1.expect)(updated.name).toBe('Updated Name');
+            (0, vitest_1.expect)(updated.name).toBe(`${TEST_PREFIX}_Updated Name`);
             (0, vitest_1.expect)(updated.faith).toBe(7);
         });
         (0, vitest_1.it)('gets all active characters', async () => {
-            await adapter.character.create({
-                name: 'Active Test 1',
-                playerId: 'test-player',
+            const c = await adapter.character.create({
+                name: `${TEST_PREFIX}_Active Test 1`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const active = await adapter.character.getAllActive();
             (0, vitest_1.expect)(active.length).toBeGreaterThan(0);
-            (0, vitest_1.expect)(active.some((c) => c.name === 'Active Test 1')).toBe(true);
+            (0, vitest_1.expect)(active.some((ch) => ch.name === `${TEST_PREFIX}_Active Test 1`)).toBe(true);
         });
         (0, vitest_1.it)('gets characters by player id', async () => {
-            const playerId = `player-${Date.now()}`;
-            await adapter.character.create({
-                name: 'Player Char 1',
+            const playerId = `${TEST_PREFIX}_player-${Date.now()}`;
+            const c1 = await adapter.character.create({
+                name: `${TEST_PREFIX}_Player Char 1`,
                 playerId,
                 vocation: 'andarilho',
             });
-            await adapter.character.create({
-                name: 'Player Char 2',
+            const c2 = await adapter.character.create({
+                name: `${TEST_PREFIX}_Player Char 2`,
                 playerId,
                 vocation: 'lavrador',
             });
             const chars = await adapter.character.getByPlayerId(playerId);
             (0, vitest_1.expect)(chars.length).toBe(2);
-            (0, vitest_1.expect)(chars.every((c) => c.playerId === playerId)).toBe(true);
+            (0, vitest_1.expect)(chars.every((ch) => ch.playerId === playerId)).toBe(true);
         });
     });
     (0, vitest_1.describe)('diary', () => {
         (0, vitest_1.it)('creates a diary entry', async () => {
             const character = await adapter.character.create({
-                name: 'Diary Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Diary Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const entry = await adapter.diary.create({
@@ -109,8 +114,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('gets diary entries by character id', async () => {
             const character = await adapter.character.create({
-                name: 'Diary Get Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Diary Get Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             await adapter.diary.create({
@@ -134,8 +139,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('enforces diary limit', async () => {
             const character = await adapter.character.create({
-                name: 'Diary Limit Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Diary Limit Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             for (let i = 0; i < 5; i++) {
@@ -156,8 +161,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
     (0, vitest_1.describe)('milestones', () => {
         (0, vitest_1.it)('creates a milestone', async () => {
             const character = await adapter.character.create({
-                name: 'Milestone Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Milestone Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const milestone = await adapter.milestones.create({
@@ -175,8 +180,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('gets milestones by character id', async () => {
             const character = await adapter.character.create({
-                name: 'Milestone Get Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Milestone Get Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             await adapter.milestones.create({
@@ -195,31 +200,31 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
     (0, vitest_1.describe)('npcs', () => {
         (0, vitest_1.it)('creates an NPC', async () => {
             const npc = await adapter.npcs.create({
-                name: 'Test NPC',
+                name: `${TEST_PREFIX}_Test NPC`,
                 locationId: 'veldra',
                 occupation: 'Merchant',
             });
             (0, vitest_1.expect)(npc.id).toBeDefined();
-            (0, vitest_1.expect)(npc.name).toBe('Test NPC');
+            (0, vitest_1.expect)(npc.name).toBe(`${TEST_PREFIX}_Test NPC`);
             (0, vitest_1.expect)(npc.isNamedByPlayer).toBe(false);
         });
         (0, vitest_1.it)('updates an NPC', async () => {
             const npc = await adapter.npcs.create({
-                name: 'Update NPC Test',
+                name: `${TEST_PREFIX}_Update NPC Test`,
                 locationId: 'veldra',
             });
             const updated = await adapter.npcs.update(npc.id, {
-                name: 'Updated NPC',
+                name: `${TEST_PREFIX}_Updated NPC`,
                 isNamedByPlayer: true,
                 namedByPlayerId: 'player-1',
                 namedByPlayerName: 'Hero',
             });
-            (0, vitest_1.expect)(updated.name).toBe('Updated NPC');
+            (0, vitest_1.expect)(updated.name).toBe(`${TEST_PREFIX}_Updated NPC`);
             (0, vitest_1.expect)(updated.isNamedByPlayer).toBe(true);
         });
         (0, vitest_1.it)('gets all NPCs', async () => {
             await adapter.npcs.create({
-                name: 'All NPCs Test',
+                name: `${TEST_PREFIX}_All NPCs Test`,
                 locationId: 'veldra',
             });
             const npcs = await adapter.npcs.getAll();
@@ -229,8 +234,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
     (0, vitest_1.describe)('relations', () => {
         (0, vitest_1.it)('creates a relation', async () => {
             const character = await adapter.character.create({
-                name: 'Relation Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Relation Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const relation = await adapter.relations.create({
@@ -245,8 +250,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('gets relations by character id', async () => {
             const character = await adapter.character.create({
-                name: 'Relation Get Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Relation Get Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             await adapter.relations.create({
@@ -263,8 +268,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
     (0, vitest_1.describe)('suggestions', () => {
         (0, vitest_1.it)('creates a suggestion', async () => {
             const character = await adapter.character.create({
-                name: 'Suggestion Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Suggestion Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const suggestion = await adapter.suggestions.create({
@@ -277,8 +282,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('gets pending suggestion', async () => {
             const character = await adapter.character.create({
-                name: 'Pending Suggestion Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Pending Suggestion Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             await adapter.suggestions.create({
@@ -292,8 +297,8 @@ const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@lo
         });
         (0, vitest_1.it)('marks suggestion as processed', async () => {
             const character = await adapter.character.create({
-                name: 'Mark Processed Test',
-                playerId: 'test-player',
+                name: `${TEST_PREFIX}_Mark Processed Test`,
+                playerId: `${TEST_PREFIX}_test-player`,
                 vocation: 'andarilho',
             });
             const suggestion = await adapter.suggestions.create({

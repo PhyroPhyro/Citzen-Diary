@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import http from 'http';
 import { URL } from 'url';
 import { createRoutes } from './routes';
@@ -7,6 +7,7 @@ import { StubQueueAdapter } from '../queue/stub-adapter';
 import { MockLLMProvider } from '../llm/mock-provider';
 
 const TEST_DB_URL = process.env.DATABASE_URL || 'postgresql://postgres:382356@localhost:5432/citizen_diary';
+const TEST_PREFIX = '__test__';
 
 function makeRequest(baseUrl: string, method: string, path: string, body?: any): Promise<{ status: number; json: () => Promise<any> }> {
   return new Promise((resolve, reject) => {
@@ -69,7 +70,12 @@ describe('API Routes', () => {
 
   afterAll(async () => {
     server.close();
+    await db.cleanupTestData(TEST_PREFIX);
     await db.disconnect();
+  });
+
+  beforeEach(async () => {
+    await db.cleanupTestData(TEST_PREFIX);
   });
 
   describe('GET /questionnaire', () => {
@@ -86,9 +92,9 @@ describe('API Routes', () => {
   describe('POST /character/create', () => {
     it('creates a character with valid data', async () => {
       const characterData = {
-        name: 'API Test Character',
+        name: `${TEST_PREFIX}_API Test Character`,
         description: 'A brave adventurer',
-        playerId: 'api-test-player',
+        playerId: `${TEST_PREFIX}_api-test-player`,
         vocation: 'andarilho',
         answers: [
           { questionId: 1, optionLetter: 'C' },
@@ -109,7 +115,7 @@ describe('API Routes', () => {
 
       expect(res.status).toBe(201);
       expect(data.message).toBe('Character created');
-      expect(data.character.name).toBe('API Test Character');
+      expect(data.character.name).toBe(`${TEST_PREFIX}_API Test Character`);
       expect(data.character.vocation).toBe('andarilho');
       expect(data.character.traits).toBeDefined();
     });

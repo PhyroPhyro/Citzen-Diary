@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Citizen Diary</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .quota-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .quota-card h2 {
+      margin-top: 0;
+      color: var(--text-primary);
+      font-size: 1.2rem;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .status-ok { background: #1a4731; color: #4ade80; }
+    .status-warn { background: #4a3f1a; color: #fbbf24; }
+    .status-error { background: #4a1a1a; color: #f87171; }
+    .status-info { background: #1a2a4a; color: #60a5fa; }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-row:last-child { border-bottom: none; }
+    .detail-label { color: var(--text-secondary); }
+    .detail-value { color: var(--text-primary); font-family: monospace; }
+    .error-box {
+      background: #2a1a1a;
+      border: 1px solid #5a2a2a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 12px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #f87171;
+      word-break: break-all;
+    }
+    .refresh-btn {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .refresh-btn:hover { opacity: 0.9; }
+    .nav-links { margin-bottom: 24px; }
+    .nav-links a {
+      color: var(--accent);
+      text-decoration: none;
+      margin-right: 16px;
+    }
+    .nav-links a:hover { text-decoration: underline; }
+    .provider-chain {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0;
+      flex-wrap: wrap;
+    }
+    .chain-item {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: 2px solid transparent;
+    }
+    .chain-active {
+      border-color: var(--accent);
+      background: var(--bg-primary);
+    }
+    .chain-failed {
+      opacity: 0.5;
+      text-decoration: line-through;
+    }
+    .chain-arrow {
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Admin — Status do Sistema</h1>
+    <div class="nav-links">
+      <a href="index.html">← Voltar ao menu</a>
+    </div>
+
+    <div id="quota-status">
+      <div class="quota-card">
+        <h2>Carregando...</h2>
+      </div>
+    </div>
+
+    <button class="refresh-btn" onclick="loadQuota()">🔄 Atualizar</button>
+  </div>
+
+  <script>
+    async function loadQuota() {
+      try {
+        const res = await fetch('/admin/quota');
+        const data = await res.json();
+        renderQuota(data);
+      } catch (err) {
+        document.getElementById('quota-status').innerHTML = `
+          <div class="quota-card">
+            <h2> Erro ao carregar</h2>
+            <p>${err.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderQuota(data) {
+      const providerOrder = [];
+      if (data.gemini.configured) providerOrder.push({ name: 'Gemini', key: 'gemini', status: data.gemini });
+      if (data.cerebras.configured) providerOrder.push({ name: 'Cerebras', key: 'cerebras', status: data.cerebras });
+      providerOrder.push({ name: 'Mock', key: 'mock', status: { configured: true, quotaExceeded: false } });
+
+      const activeIdx = providerOrder.findIndex(p => p.key === data.activeProvider);
+
+      const chainHtml = providerOrder.map((p, i) => {
+        let cls = 'chain-item';
+        if (i === activeIdx) cls += ' chain-active';
+        else if (i < activeIdx) cls += ' chain-failed';
+        const icon = p.status.quotaExceeded ? '❌' : (i === activeIdx ? '✅' : '');
+        return `<span class="${cls}">${icon} ${p.name}</span>${i < providerOrder.length - 1 ? '<span class="chain-arrow">→</span>' : ''}`;
+      }).join('');
+
+      let activeBadge;
+      if (data.activeProvider === 'gemini') activeBadge = '<span class="status-badge status-ok"> Gemini</span>';
+      else if (data.activeProvider === 'cerebras') activeBadge = '<span class="status-badge status-warn"> Cerebras</span>';
+      else activeBadge = '<span class="status-badge status-info"> Mock</span>';
+
+      const providerCards = providerOrder.map(p => {
+        const statusBadge = p.status.quotaExceeded
+          ? '<span class="status-badge status-error"> Quota Esgotada</span>'
+          : '<span class="status-badge status-ok">✅ OK</span>';
+        const errorHtml = p.status.error ? `<div class="error-box">${escapeHtml(p.status.error)}</div>` : '';
+        return `
+          <div class="quota-card">
+            <h2>${p.name}</h2>
+            <p>${statusBadge}</p>
+            <div class="detail-row">
+              <span class="detail-label">Configurado</span>
+              <span class="detail-value">${p.status.configured ? '✅ Sim' : ' Não'}</span>
+            </div>
+            ${errorHtml}
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('quota-status').innerHTML = `
+        <div class="quota-card">
+          <h2>Cadeia de Providers</h2>
+          <p>Provider ativo: ${activeBadge}</p>
+          <div class="provider-chain">${chainHtml}</div>
+          <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 8px;">
+            O sistema tenta Gemini primeiro. Se a quota esgotar, usa Cerebras. Se ambos falharem, usa Mock.
+          </p>
+        </div>
+
+        ${providerCards}
+
+        <div class="quota-card">
+          <h2> Como configurar</h2>
+          <ul>
+            <li><strong>Gemini:</strong> API key em <a href="https://aistudio.google.com/apikey" target="_blank" style="color: var(--accent);">Google AI Studio</a></li>
+            <li><strong>Cerebras:</strong> API key em <a href="https://inference.cerebras.ai/" target="_blank" style="color: var(--accent);">Cerebras Inference</a> (quota free generosa)</li>
+            <li>Adicione as chaves no <code>.env</code>: <code>LLM_API_KEY</code> e <code>CEREBRAS_API_KEY</code></li>
+          </ul>
+        </div>
+      `;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    loadQuota();
+  </script>
+</body>
+</html>

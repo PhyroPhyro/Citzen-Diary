@@ -229,7 +229,7 @@ function scoreTasks(tasks, context) {
 function resolveTies(scoredTasks, character) {
     return scoredTasks.sort((a, b) => {
         const diff = b.score - a.score;
-        if (Math.abs(diff) > 1)
+        if (diff !== 0)
             return diff;
         if (b.breakdown.commitment !== a.breakdown.commitment) {
             return b.breakdown.commitment - a.breakdown.commitment;
