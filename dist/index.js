@@ -33,6 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+require("dotenv/config");
 const app_1 = require("./api/app");
 const db_1 = require("./db");
 const queue_1 = require("./queue");

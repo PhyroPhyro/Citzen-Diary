@@ -14,6 +14,7 @@ class StubDBAdapter {
         async update() { return {}; },
         async getAllActive() { return []; },
         async getByPlayerId() { return []; },
+        async updateObjectiveProgress() { },
     };
     diary = {
         async getByCharacterId() { return []; },

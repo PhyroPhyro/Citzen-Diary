@@ -54,13 +54,16 @@ class CascadeLLMProvider {
         }
     }
     async tryCerebras(fn) {
-        if (!this.cerebras)
+        if (!this.cerebras) {
+            console.error('[LLM] Cerebras provider is not configured (missing API key?)');
             throw new Error('Cerebras not configured');
+        }
         try {
             const result = await fn();
             return { result, provider: 'cerebras' };
         }
         catch (error) {
+            console.error('[LLM] Cerebras failed:', error);
             if (this.isQuotaError(error)) {
                 console.warn('[LLM] Cerebras quota exceeded, falling back to Mock...');
                 this.currentLevel = 'mock';

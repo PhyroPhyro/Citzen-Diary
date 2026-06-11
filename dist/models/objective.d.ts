@@ -23,4 +23,5 @@ export interface Commitment {
     createdAt: Date;
 }
 export declare function getCommitmentModifier(ticksRemaining: number): number;
+export declare function calculateObjectiveProgress(taskId: string, objectiveType: string): number;
 //# sourceMappingURL=objective.d.ts.map

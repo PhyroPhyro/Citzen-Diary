@@ -122,6 +122,13 @@ class PostgreSQLAdapter {
             const result = await this.pool.query("SELECT * FROM characters WHERE player_id = $1 ORDER BY last_tick_at DESC", [playerId]);
             return result.rows.map((row) => this.mapRowToCharacter(row));
         },
+        updateObjectiveProgress: async (id, progressScore) => {
+            await this.pool.query(`UPDATE characters SET objective = jsonb_set(
+          objective::jsonb,
+          '{progressScore}',
+          $2::jsonb
+        ) WHERE id = $1`, [id, JSON.stringify(progressScore)]);
+        },
     };
     diary = {
         getByCharacterId: async (characterId, limit = 20) => {

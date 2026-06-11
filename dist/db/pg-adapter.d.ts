@@ -13,6 +13,7 @@ export declare class PostgreSQLAdapter implements DBAdapter {
         update: (id: string, data: Partial<Character>) => Promise<Character>;
         getAllActive: () => Promise<Character[]>;
         getByPlayerId: (playerId: string) => Promise<Character[]>;
+        updateObjectiveProgress: (id: string, progressScore: number) => Promise<void>;
     };
     diary: {
         getByCharacterId: (characterId: string, limit?: number) => Promise<DiaryEntry[]>;

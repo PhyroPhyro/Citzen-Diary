@@ -8,7 +8,8 @@ import { DBAdapter } from '../../db';
 import { QueueAdapter } from '../../queue';
 import { getTasksByVocation, UNIVERSAL_TASKS, getTaskById } from '../../data/tasks';
 import { getLocationById, getEventsByLocation } from '../../data/world';
-import { processMilestones, MilestoneCheckContext } from '../npc/milestone-system';
+import { processMilestones, MilestoneCheckContext, groupTrivialEntries, reevaluateSpecialization } from '../npc/milestone-system';
+import { calculateObjectiveProgress } from '../../models/objective';
 
 export interface TickResult {
   characterId: string;
@@ -123,6 +124,16 @@ export async function executeCharacterTick(
     await db.diary.create(diaryEntry);
     await db.diary.enforceLimit(character.id, 30);
   }
+
+  if (character.objective && character.objective.progressScore < 100) {
+    const progressDelta = calculateObjectiveProgress(task.id, character.objective.type);
+    const newProgress = Math.min(100, character.objective.progressScore + progressDelta);
+    await db.character.updateObjectiveProgress(character.id, newProgress);
+    character.objective.progressScore = newProgress;
+  }
+
+  await groupTrivialEntries(character.id, db);
+  await reevaluateSpecialization(character, db, llm);
 
   const milestoneContext: MilestoneCheckContext = {
     character,

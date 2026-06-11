@@ -144,6 +144,17 @@ export class PostgreSQLAdapter implements DBAdapter {
       );
       return result.rows.map((row) => this.mapRowToCharacter(row));
     },
+
+    updateObjectiveProgress: async (id: string, progressScore: number): Promise<void> => {
+      await this.pool.query(
+        `UPDATE characters SET objective = jsonb_set(
+          objective::jsonb,
+          '{progressScore}',
+          $2::jsonb
+        ) WHERE id = $1`,
+        [id, JSON.stringify(progressScore)]
+      );
+    },
   };
 
   diary = {

@@ -9,6 +9,7 @@ const llm_context_1 = require("../../diary/llm-context");
 const generator_1 = require("../../diary/generator");
 const world_1 = require("../../data/world");
 const milestone_system_1 = require("../npc/milestone-system");
+const objective_1 = require("../../models/objective");
 function calculateTickInterval(character) {
     const hoursSinceLogin = (Date.now() - character.lastPlayerLoginAt.getTime()) / (1000 * 60 * 60);
     let absenceInterval;
@@ -103,6 +104,14 @@ async function executeCharacterTick(character, db, queue, llm) {
         await db.diary.create(diaryEntry);
         await db.diary.enforceLimit(character.id, 30);
     }
+    if (character.objective && character.objective.progressScore < 100) {
+        const progressDelta = (0, objective_1.calculateObjectiveProgress)(task.id, character.objective.type);
+        const newProgress = Math.min(100, character.objective.progressScore + progressDelta);
+        await db.character.updateObjectiveProgress(character.id, newProgress);
+        character.objective.progressScore = newProgress;
+    }
+    await (0, milestone_system_1.groupTrivialEntries)(character.id, db);
+    await (0, milestone_system_1.reevaluateSpecialization)(character, db, llm);
     const milestoneContext = {
         character,
         taskId: task.id,

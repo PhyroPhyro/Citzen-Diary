@@ -15,6 +15,7 @@ export class StubDBAdapter implements DBAdapter {
     async update(): Promise<any> { return {}; },
     async getAllActive(): Promise<any[]> { return []; },
     async getByPlayerId(): Promise<any[]> { return []; },
+    async updateObjectiveProgress(): Promise<void> {},
   };
 
   diary = {

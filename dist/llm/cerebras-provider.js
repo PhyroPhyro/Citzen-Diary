@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CerebrasProvider = void 0;
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
-const CEREBRAS_MODEL = 'llama3.1-8b';
+const CEREBRAS_MODEL = 'gpt-oss-120b';
 class CerebrasProvider {
     apiKey;
     model;

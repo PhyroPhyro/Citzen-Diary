@@ -8,6 +8,7 @@ export declare class StubDBAdapter implements DBAdapter {
         update(): Promise<any>;
         getAllActive(): Promise<any[]>;
         getByPlayerId(): Promise<any[]>;
+        updateObjectiveProgress(): Promise<void>;
     };
     diary: {
         getByCharacterId(): Promise<any[]>;
