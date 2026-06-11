@@ -38,6 +38,7 @@ const db_1 = require("./db");
 const queue_1 = require("./queue");
 const llm_1 = require("./llm");
 const world_tick_scheduler_1 = require("./core/tick/world-tick-scheduler");
+const admin_cli_1 = require("./cli/admin-cli");
 async function checkPostgreSQL() {
     const dbUrl = process.env.DATABASE_URL;
     if (!dbUrl)
@@ -118,6 +119,7 @@ async function bootstrap() {
         console.log(`[Server] Health check: http://localhost:${PORT}/health`);
         console.log(`[Server] API docs: http://localhost:${PORT}/docs`);
     });
+    (0, admin_cli_1.startAdminCLI)({ db, queue, llm });
     process.on('SIGINT', async () => {
         console.log('[Server] Shutting down...');
         server.close();

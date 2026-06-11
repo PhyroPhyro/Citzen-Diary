@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateTickInterval = calculateTickInterval;
+exports.shouldConvertToNPC = shouldConvertToNPC;
 exports.executeCharacterTick = executeCharacterTick;
 const decision_1 = require("../decision");
 const narrative_state_1 = require("../decision/narrative-state");
@@ -28,6 +29,12 @@ function calculateTickInterval(character) {
     if (character.isNpc)
         return -1;
     return absenceInterval;
+}
+function shouldConvertToNPC(character) {
+    if (character.isNpc)
+        return false;
+    const hoursSinceLogin = (Date.now() - character.lastPlayerLoginAt.getTime()) / (1000 * 60 * 60);
+    return hoursSinceLogin > 48;
 }
 async function executeCharacterTick(character, db, queue, llm) {
     const interval = calculateTickInterval(character);

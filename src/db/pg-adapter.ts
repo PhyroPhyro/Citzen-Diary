@@ -29,6 +29,7 @@ export class PostgreSQLAdapter implements DBAdapter {
     await this.pool.query('DELETE FROM player_suggestions WHERE character_id IN (SELECT id FROM characters WHERE name LIKE $1)', [likePrefix]);
     await this.pool.query('DELETE FROM characters WHERE name LIKE $1', [likePrefix]);
     await this.pool.query("DELETE FROM npcs WHERE name LIKE $1", [likePrefix]);
+    await this.pool.query("DELETE FROM npcs WHERE name LIKE '%Test%' OR name LIKE '%NPC%' OR name LIKE '%Updated%'", []);
   }
 
   async healthCheck(): Promise<boolean> {

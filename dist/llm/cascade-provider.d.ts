@@ -4,8 +4,11 @@ export declare class CascadeLLMProvider implements LLMProvider {
     private cerebras;
     private mock;
     private currentLevel;
+    private lastGeminiFailure;
+    private readonly GEMINI_RETRY_INTERVAL;
     constructor(geminiApiKey?: string, cerebrasApiKey?: string);
     get activeProvider(): string;
+    resetToGemini(): void;
     private isQuotaError;
     private tryGemini;
     private tryCerebras;

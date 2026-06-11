@@ -58,6 +58,10 @@ At the beginning of every session, verify external services before coding:
    npm test
    ```
 
+### Quick Boot (Windows)
+- **Duplo clique em `boot.bat`** na raiz do projeto — inicia PostgreSQL, Redis e servidor automaticamente
+- **Docker Compose**: `docker compose up -d` para iniciar PostgreSQL + Redis juntos
+
 ### How To Documentation
 - The file `C:\Users\phyro\Documents\Vaults\Personal\4. Projetos\Citizen Diary\Estado\How To.md` is the **single reference** for human operators — how to run tests, start the server, requirements, troubleshooting.
 - **ALWAYS update this file** when:
@@ -97,8 +101,8 @@ At the beginning of every session, verify external services before coding:
 | Narrative State | classifyNarrativeState | Test each rich condition individually and combined |
 | Diary | generateTemplateEntry | Verify template selection and tone suffix logic |
 | LLM Context | buildLLMContext | Verify prompt format and token structure |
-| Tick | calculateTickInterval | Test all absence time buckets |
-| LLM Cascade | Gemini → Cerebras → Mock fallback | MockLLMProvider always used in tests — never real APIs |
+| Tick | calculateTickInterval, shouldConvertToNPC | Test all absence time buckets and NPC conversion threshold |
+| LLM Cascade | Gemini → Cerebras → Mock fallback, retry logic | MockLLMProvider always used in tests — never real APIs |
 
 ### Test Execution
 - Run `npm test` before committing any feature

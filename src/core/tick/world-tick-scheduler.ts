@@ -1,12 +1,14 @@
 import { DBAdapter } from '../../db';
 import { QueueAdapter } from '../../queue';
-import { LLMProvider } from '../../llm';
-import { executeCharacterTick } from './character-tick';
+import { LLMProvider, CascadeLLMProvider } from '../../llm';
+import { executeCharacterTick, shouldConvertToNPC } from './character-tick';
 
 const TICK_CHECK_INTERVAL = 30000;
+const LLM_RETRY_CHECK_INTERVAL = 60 * 60 * 1000;
 
 export class WorldTickScheduler {
   private intervalId: NodeJS.Timeout | null = null;
+  private retryIntervalId: NodeJS.Timeout | null = null;
   private running = false;
 
   constructor(
@@ -32,7 +34,16 @@ export class WorldTickScheduler {
       }
     }, TICK_CHECK_INTERVAL);
 
+    this.startLlmRetryChecker();
     this.processTicks();
+  }
+
+  private startLlmRetryChecker() {
+    this.retryIntervalId = setInterval(() => {
+      if (this.llm instanceof CascadeLLMProvider) {
+        this.llm.resetToGemini();
+      }
+    }, LLM_RETRY_CHECK_INTERVAL);
   }
 
   stop() {
@@ -41,14 +52,26 @@ export class WorldTickScheduler {
       this.intervalId = null;
       console.log('[Scheduler] World Tick Scheduler stopped');
     }
+    if (this.retryIntervalId) {
+      clearInterval(this.retryIntervalId);
+      this.retryIntervalId = null;
+    }
   }
 
   private async processTicks() {
     const characters = await this.db.character.getAllActive();
     const now = Date.now();
     let processed = 0;
+    let npcConverted = 0;
 
     for (const character of characters) {
+      if (shouldConvertToNPC(character)) {
+        await this.convertToNpc(character.id);
+        npcConverted++;
+        console.log(`[Scheduler] ${character.name} converted to NPC mode`);
+        continue;
+      }
+
       const nextTickTime = character.nextTickAt.getTime();
       if (nextTickTime > now) continue;
 
@@ -66,5 +89,15 @@ export class WorldTickScheduler {
     if (processed > 0) {
       console.log(`[Scheduler] Processed ${processed} tick(s)`);
     }
+    if (npcConverted > 0) {
+      console.log(`[Scheduler] Converted ${npcConverted} character(s) to NPC mode`);
+    }
+  }
+
+  private async convertToNpc(characterId: string) {
+    await this.db.character.update(characterId, {
+      isNpc: true,
+      nextTickAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
   }
 }

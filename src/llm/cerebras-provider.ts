@@ -8,7 +8,7 @@ import {
 } from './provider';
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
-const CEREBRAS_MODEL = 'llama3.1-8b';
+const CEREBRAS_MODEL = 'gpt-oss-120b';
 
 export class CerebrasProvider implements LLMProvider {
   private apiKey: string;

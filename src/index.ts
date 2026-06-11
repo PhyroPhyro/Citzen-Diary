@@ -1,8 +1,10 @@
+import 'dotenv/config';
 import { setupAPI } from './api/app';
 import { createDBAdapter, PostgreSQLAdapter } from './db';
 import { createQueueAdapter, BullMQAdapter } from './queue';
 import { createLLMProvider } from './llm';
 import { WorldTickScheduler } from './core/tick/world-tick-scheduler';
+import { startAdminCLI } from './cli/admin-cli';
 
 async function checkPostgreSQL(): Promise<boolean> {
   const dbUrl = process.env.DATABASE_URL;
@@ -89,6 +91,8 @@ async function bootstrap() {
     console.log(`[Server] Health check: http://localhost:${PORT}/health`);
     console.log(`[Server] API docs: http://localhost:${PORT}/docs`);
   });
+
+  startAdminCLI({ db, queue, llm });
 
   process.on('SIGINT', async () => {
     console.log('[Server] Shutting down...');

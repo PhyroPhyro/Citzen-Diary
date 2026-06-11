@@ -15,6 +15,8 @@ export class CascadeLLMProvider implements LLMProvider {
   private cerebras: CerebrasProvider | null = null;
   private mock: MockLLMProvider;
   private currentLevel: 'gemini' | 'cerebras' | 'mock' = 'gemini';
+  private lastGeminiFailure = 0;
+  private readonly GEMINI_RETRY_INTERVAL = 60 * 60 * 1000;
 
   constructor(geminiApiKey?: string, cerebrasApiKey?: string) {
     this.mock = new MockLLMProvider();
@@ -30,6 +32,16 @@ export class CascadeLLMProvider implements LLMProvider {
     return this.currentLevel;
   }
 
+  resetToGemini() {
+    if (this.currentLevel !== 'gemini' && this.gemini) {
+      const timeSinceFailure = Date.now() - this.lastGeminiFailure;
+      if (timeSinceFailure >= this.GEMINI_RETRY_INTERVAL) {
+        console.log('[LLM] Retrying Gemini after cooldown...');
+        this.currentLevel = 'gemini';
+      }
+    }
+  }
+
   private isQuotaError(error: unknown): boolean {
     const msg = String(error);
     return msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests') || msg.includes('rate limit');
@@ -42,6 +54,7 @@ export class CascadeLLMProvider implements LLMProvider {
       return { result, provider: 'gemini' };
     } catch (error) {
       if (this.isQuotaError(error)) {
+        this.lastGeminiFailure = Date.now();
         console.warn('[LLM] Gemini quota exceeded, trying Cerebras...');
         this.currentLevel = 'cerebras';
         throw error;
@@ -51,11 +64,15 @@ export class CascadeLLMProvider implements LLMProvider {
   }
 
   private async tryCerebras<T>(fn: () => Promise<T>): Promise<{ result: T; provider: string }> {
-    if (!this.cerebras) throw new Error('Cerebras not configured');
+    if (!this.cerebras) {
+      console.error('[LLM] Cerebras provider is not configured (missing API key?)');
+      throw new Error('Cerebras not configured');
+    }
     try {
       const result = await fn();
       return { result, provider: 'cerebras' };
     } catch (error) {
+      console.error('[LLM] Cerebras failed:', error);
       if (this.isQuotaError(error)) {
         console.warn('[LLM] Cerebras quota exceeded, falling back to Mock...');
         this.currentLevel = 'mock';

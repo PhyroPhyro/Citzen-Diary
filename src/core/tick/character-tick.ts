@@ -37,6 +37,12 @@ export function calculateTickInterval(character: Character): number {
   return absenceInterval;
 }
 
+export function shouldConvertToNPC(character: Character): boolean {
+  if (character.isNpc) return false;
+  const hoursSinceLogin = (Date.now() - character.lastPlayerLoginAt.getTime()) / (1000 * 60 * 60);
+  return hoursSinceLogin > 48;
+}
+
 export async function executeCharacterTick(
   character: Character,
   db: DBAdapter,

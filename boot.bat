@@ -67,11 +67,12 @@ echo [3/3] Starting Citizen Diary server...
 echo.
 echo ========================================
 echo   Server will open in a new window
-echo   Press Ctrl+C in that window to stop
+echo   CLI is enabled (type "help" for commands)
+echo   Note: Hot-reload is disabled for CLI stability
 echo ========================================
 echo.
 
-start "Citizen Diary Server" cmd /k "cd /d "%~dp0" && npm run dev"
+start "Citizen Diary Server" cmd /k "cd /d "%~dp0" && npx tsx src/index.ts"
 
 echo.
 echo [OK] Boot complete!
