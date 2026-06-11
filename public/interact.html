@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interagir — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html" class="active">Interagir</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+
+    <div id="noChar" style="display: none;">
+      <div class="card">
+        <h2>Nenhum personagem selecionado</h2>
+        <p>Selecione ou crie um personagem primeiro.</p>
+        <a href="/" class="btn" style="margin-top: 1rem;">Voltar ao Início</a>
+      </div>
+    </div>
+
+    <div id="interactContent" style="display: none;">
+      <div class="card">
+        <h2>Interagir com <span id="charName"></span></h2>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);">Escolha uma forma de interagir com seu personagem.</p>
+      </div>
+
+      <div class="card">
+        <h3>🙏 Oração</h3>
+        <p style="font-size: 0.9rem;">Reze para seu personagem. Isso aumenta a fé dele em +1 (máximo 10).</p>
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">Fé atual: <strong id="faithValue">-</strong></p>
+        <button class="btn btn-success" onclick="pray()" id="prayBtn">Orar</button>
+      </div>
+
+      <div class="card">
+        <h3>💡 Enviar Sugestão</h3>
+        <p style="font-size: 0.9rem;">Sugira uma ação ou destino para seu personagem. Ele pode ou não seguir seu conselho.</p>
+
+        <div class="form-group">
+          <label for="suggestionType">Tipo</label>
+          <select id="suggestionType" onchange="toggleSuggestionFields()">
+            <option value="task">Sugestão de Ação</option>
+            <option value="destination">Sugestão de Destino</option>
+            <option value="vision">Visão (texto livre)</option>
+          </select>
+        </div>
+
+        <div id="taskField" class="form-group">
+          <label for="taskId">Ação Sugerida</label>
+          <input type="text" id="taskId" placeholder="harvest, walk, talk, sell...">
+        </div>
+
+        <div id="destField" class="form-group" style="display: none;">
+          <label for="locationId">Destino Sugerido</label>
+          <input type="text" id="locationId" placeholder="veldra, arvel, maren...">
+        </div>
+
+        <div id="visionField" class="form-group" style="display: none;">
+          <label for="visionText">Visão (máx. 200 chars)</label>
+          <textarea id="visionText" maxlength="200" placeholder="Vejo uma estrada ao norte..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="suggestionMsg">Mensagem (opcional)</label>
+          <input type="text" id="suggestionMsg" placeholder="Tente isso..." maxlength="500">
+        </div>
+
+        <button class="btn" onclick="sendSuggestion()">Enviar Sugestão</button>
+      </div>
+
+      <div class="card">
+        <h3>🏷️ Batizar NPC</h3>
+        <p style="font-size: 0.9rem;">Dê um nome a um NPC que seu personagem encontrou.</p>
+        <div class="form-group">
+          <label for="npcId">ID do NPC</label>
+          <input type="text" id="npcId" placeholder="npc-...">
+        </div>
+        <div class="form-group">
+          <label for="npcName">Nome</label>
+          <input type="text" id="npcName" placeholder="Garrick" maxlength="100">
+        </div>
+        <button class="btn btn-secondary" onclick="nameNpc()">Batizar</button>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+    let currentCharId = null;
+
+    async function loadInteract() {
+      currentCharId = localStorage.getItem('currentCharacterId');
+
+      if (!currentCharId) {
+        document.getElementById('noChar').style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/character/${currentCharId}`);
+        if (!res.ok) {
+          document.getElementById('noChar').style.display = 'block';
+          return;
+        }
+
+        const char = await res.json();
+        document.getElementById('charName').textContent = char.name;
+        document.getElementById('faithValue').textContent = `${char.faith}/10`;
+        document.getElementById('interactContent').style.display = 'block';
+      } catch {
+        document.getElementById('status').innerHTML = '<p class="error">Erro ao carregar.</p>';
+      }
+    }
+
+    function toggleSuggestionFields() {
+      const type = document.getElementById('suggestionType').value;
+      document.getElementById('taskField').style.display = type === 'task' ? 'block' : 'none';
+      document.getElementById('destField').style.display = type === 'destination' ? 'block' : 'none';
+      document.getElementById('visionField').style.display = type === 'vision' ? 'block' : 'none';
+    }
+
+    async function pray() {
+      const btn = document.getElementById('prayBtn');
+      btn.disabled = true;
+      btn.textContent = 'Orando...';
+
+      try {
+        const res = await fetch(`${API}/character/${currentCharId}/pray`, { method: 'POST' });
+        const data = await res.json();
+
+        document.getElementById('faithValue').textContent = `${data.faith}/10`;
+        document.getElementById('status').innerHTML = `<div class="success">Oração enviada! Fé: ${data.previousFaith} → ${data.faith}</div>`;
+      } catch {
+        document.getElementById('status').innerHTML = '<div class="error">Erro ao orar.</div>';
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Orar';
+    }
+
+    async function sendSuggestion() {
+      const type = document.getElementById('suggestionType').value;
+      const msg = document.getElementById('suggestionMsg').value.trim();
+
+      let body = { type, message: msg || null };
+
+      if (type === 'task') {
+        body.taskId = document.getElementById('taskId').value.trim();
+        if (!body.taskId) {
+          document.getElementById('status').innerHTML = '<div class="error">Digite uma ação sugerida.</div>';
+          return;
+        }
+      } else if (type === 'destination') {
+        body.locationId = document.getElementById('locationId').value.trim();
+        if (!body.locationId) {
+          document.getElementById('status').innerHTML = '<div class="error">Digite um destino sugerido.</div>';
+          return;
+        }
+      } else if (type === 'vision') {
+        body.text = document.getElementById('visionText').value.trim();
+        if (!body.text) {
+          document.getElementById('status').innerHTML = '<div class="error">Digite sua visão.</div>';
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch(`${API}/character/${currentCharId}/suggestion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Erro ao enviar');
+        }
+
+        document.getElementById('status').innerHTML = '<div class="success">Sugestão enviada! Seu personagem pode considerá-la no próximo tick.</div>';
+
+        document.getElementById('taskId').value = '';
+        document.getElementById('locationId').value = '';
+        document.getElementById('visionText').value = '';
+        document.getElementById('suggestionMsg').value = '';
+      } catch (err) {
+        document.getElementById('status').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    async function nameNpc() {
+      const npcId = document.getElementById('npcId').value.trim();
+      const name = document.getElementById('npcName').value.trim();
+
+      if (!npcId || !name) {
+        document.getElementById('status').innerHTML = '<div class="error">Preencha o ID do NPC e o nome.</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/character/${currentCharId}/name-npc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ npcId, name }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Erro ao batizar');
+        }
+
+        document.getElementById('status').innerHTML = `<div class="success">NPC batizado como "${name}"!</div>`;
+        document.getElementById('npcId').value = '';
+        document.getElementById('npcName').value = '';
+      } catch (err) {
+        document.getElementById('status').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    loadInteract();
+  </script>
+</body>
+</html>

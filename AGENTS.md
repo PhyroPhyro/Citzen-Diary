@@ -17,9 +17,83 @@
 - The GDD is versioned (currently 0.2) and lives in the vault. Reference it by section number.
 
 ## Developer Workflow
-- No lint, typecheck, or test commands defined yet — verify by running the server manually.
+- **ALWAYS run `npm run build`** after any code change — TypeScript compilation catches errors that won't show until runtime
+- **ALWAYS run `npm test`** after implementing features or fixing bugs — tests are a completeness requirement
 - When commands are added to `package.json`, update this file.
 - Build/compile TypeScript before considering tasks complete.
+
+### Session Startup Checklist
+At the beginning of every session, verify external services before coding:
+
+1. **Check PostgreSQL**:
+   ```powershell
+   $env:PGPASSWORD = '382356'; & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "SELECT 1;" 2>&1
+   ```
+   - If it fails, PostgreSQL is not running — start it via Windows Services or `pg_ctl`
+   - Verify database exists: `SELECT datname FROM pg_database WHERE datname = 'citizen_diary';`
+   - If missing, create: `CREATE DATABASE citizen_diary;` then run `npm run migrate`
+
+2. **Check Redis**:
+   ```powershell
+   redis-cli ping
+   ```
+   - If it fails, Redis is not running — start it via Windows Services or `redis-server`
+   - Expected response: `PONG`
+
+3. **Verify .env**:
+   - Ensure `DATABASE_URL` and `REDIS_URL` match the running services
+   - Ensure `GEMINI_API_KEY` is set if LLM features are needed
+
+4. **Run build + tests**:
+   ```bash
+   npm run build
+   npm test
+   ```
+
+### How To Documentation
+- The file `C:\Users\phyro\Documents\Vaults\Personal\4. Projetos\Citizen Diary\Estado\How To.md` is the **single reference** for human operators — how to run tests, start the server, requirements, troubleshooting.
+- **ALWAYS update this file** when:
+  - A new npm script is added or changed
+  - A new service or dependency is required
+  - A new deployment process is added
+  - A troubleshooting case is discovered and resolved
+  - The server startup process changes
+  - Test execution process changes
+- Keep it readable, intuitive, and organized in clear sections.
+
+## Testing
+
+### Framework
+- **Vitest** — fast, TypeScript-native, compatible with existing tooling
+- Test files live alongside source: `src/**/*.test.ts`
+- Run all tests: `npm test`
+- Run with coverage: `npm run test:coverage`
+- Run in watch mode: `npm run test:watch`
+
+### Testing Rules
+- **Every new feature MUST have unit tests** — no exceptions
+- **Tests are a completeness requirement** — a task is not done until tests pass
+- **Test pure functions first** — motor, modifiers, templates, questionnaire, classification
+- **Mock adapters for integration tests** — use stub adapters when DB/Queue aren't available
+- **Test edge cases** — empty pools, zero values, boundary conditions, tie resolution
+- **Run tests at the end of significant tasks** — before marking any feature as complete
+
+### What to Test
+| Layer | What | How |
+|---|---|---|
+| Models | traitToModifier, getMoodModifier, getDominantMood, affinityToModifier, getCommitmentModifier | Direct function calls with boundary values |
+| Data | getTasksByVocation, getTemplateForTask, getToneSuffix, calculateTraits, getLocationById | Verify correct data returned for known inputs |
+| Decision Motor | scoreTasks, buildTaskPool, resolveTies, runDecisionMotor | Create test characters with known traits, verify scores |
+| Narrative State | classifyNarrativeState | Test each rich condition individually and combined |
+| Diary | generateTemplateEntry | Verify template selection and tone suffix logic |
+| LLM Context | buildLLMContext | Verify prompt format and token structure |
+| Tick | calculateTickInterval | Test all absence time buckets |
+
+### Test Execution
+- Run `npm test` before committing any feature
+- If tests fail, fix before proceeding
+- Add new tests when adding new functionality
+- Update existing tests when modifying behavior
 
 ## Architecture
 - **Backend-first:** toda simulação ocorre no servidor. O cliente é apenas janela de leitura e interação mínima.
@@ -39,18 +113,20 @@ GET  /world/events               → eventos globais ativos
 POST /player/login               → atualiza timestamp de login
 ```
 
-### Directory Layout (Planned)
+### Directory Layout
 | Path | Domain |
 |---|---|
-| `src/api/` | Express routes, controllers, middleware |
+| `src/api/` | Express app, routes, controllers, middleware |
 | `src/core/` | Character engine, decision motor, tick scheduler |
-| `src/llm/` | LLM integration, context building, narrative generation |
-| `src/models/` | TypeScript interfaces (Character, Traits, Mood, Objective, etc.) |
-| `src/db/` | PostgreSQL schema, migrations, queries |
-| `src/queue/` | BullMQ job definitions, worker setup |
-| `src/vocations/` | Vocation definitions, task pools, specialization logic |
+| `src/core/decision/` | motor.ts (score, pool, ranking), narrative-state.ts |
+| `src/core/tick/` | character-tick.ts (full tick flow) |
+| `src/llm/` | LLM integration (Gemini + Mock), context building |
+| `src/models/` | TypeScript interfaces (Character, Traits, Mood, etc.) |
+| `src/db/` | PostgreSQL schema, migrations (10 files), adapter interface + stub |
+| `src/queue/` | BullMQ adapter interface + stub |
+| `src/data/` | Tasks (~40), world data, templates, questionnaire |
 | `src/world/` | Locations, regions, events, global state |
-| `src/diary/` | Diary entry generation, templates, milestone tracking |
+| `src/diary/` | Diary entry generation, templates, LLM context builder |
 
 ## Key Systems
 

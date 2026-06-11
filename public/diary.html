@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diário — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html" class="active">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+    <div id="content">
+      <p class="loading">Carregando diário...</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+
+    async function loadDiary() {
+      const charId = localStorage.getItem('currentCharacterId');
+      if (!charId) {
+        document.getElementById('content').innerHTML = `
+          <div class="card">
+            <h2>Nenhum personagem selecionado</h2>
+            <p>Selecione ou crie um personagem primeiro.</p>
+            <a href="/" class="btn" style="margin-top: 1rem;">Voltar ao Início</a>
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/character/${charId}/diary?limit=30`);
+        const data = await res.json();
+
+        if (data.entries.length === 0) {
+          document.getElementById('content').innerHTML = `
+            <div class="card">
+              <h2>Diário Vazio</h2>
+              <p>Seu personagem ainda não registrou nenhuma entrada no diário. Ele começará a escrever após o primeiro tick.</p>
+              <a href="/character.html" class="btn" style="margin-top: 1rem;">Ver Personagem</a>
+            </div>
+          `;
+          return;
+        }
+
+        const html = `
+          <div class="card">
+            <h2>Diário de <span id="charName"></span></h2>
+            <p style="font-size: 0.85rem; color: var(--text-secondary);">${data.total} entradas</p>
+          </div>
+          <div class="card">
+            ${data.entries.map(e => `
+              <div class="diary-entry">
+                <div class="date">${new Date(e.occurredAt).toLocaleString('pt-BR')}</div>
+                <div class="text">${e.text}</div>
+                <div class="meta">
+                  ${e.source === 'llm' ? '<span class="badge badge-primary">LLM</span>' : '<span class="badge badge-success">Template</span>'}
+                  ${e.isGrouped ? `<span class="badge badge-warning">×${e.groupCount}</span>` : ''}
+                  ${e.isAnchored ? '<span class="badge badge-success">Ancorada</span>' : ''}
+                  ${e.locationName ? ` · ${e.locationName}` : ''}
+                  ${e.moodState ? ` · ${e.moodState}` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        document.getElementById('content').innerHTML = html;
+
+        const charRes = await fetch(`${API}/character/${charId}`);
+        const char = await charRes.json();
+        document.getElementById('charName').textContent = char.name;
+      } catch {
+        document.getElementById('content').innerHTML = '<p class="error">Erro ao carregar diário.</p>';
+      }
+    }
+
+    loadDiary();
+  </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marcos — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html" class="active">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+    <div id="content">
+      <p class="loading">Carregando marcos...</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+
+    const milestoneIcons = {
+      position_gained: '👑', position_lost: '📉', objective_achieved: '🎯',
+      relationship_established: '🤝', relationship_broken: '💔', trait_changed: '🔄',
+      critical_survival: '⚔️', arrival_high_weight_location: '🏰',
+      commitment_resolved: '✅', first_npc_interaction: '👋',
+      specialization_consolidated: '🔨', world_event_impact: '🌍',
+      lasting_mood_change: '💭', arrival_medium_weight_location: '🏘️',
+      first_visit_new_location: '🗺️', first_exclusive_task: '⭐',
+      small_economic_social_achievement: '💰', first_commitment: '📋',
+    };
+
+    const importanceLabels = {
+      decisive: 'Decisivo', relevant: 'Relevante', minor: 'Menor',
+    };
+
+    async function loadMilestones() {
+      const charId = localStorage.getItem('currentCharacterId');
+      if (!charId) {
+        document.getElementById('content').innerHTML = `
+          <div class="card">
+            <h2>Nenhum personagem selecionado</h2>
+            <p>Selecione ou crie um personagem primeiro.</p>
+            <a href="/" class="btn" style="margin-top: 1rem;">Voltar ao Início</a>
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API}/character/${charId}/milestones`);
+        const data = await res.json();
+
+        if (data.milestones.length === 0) {
+          document.getElementById('content').innerHTML = `
+            <div class="card">
+              <h2>Nenhum Marco Ainda</h2>
+              <p>Marcos são momentos significativos na vida do seu personagem — ganho de posição, relações importantes, objetivos alcançados. Eles aparecerão conforme o personagem vive.</p>
+              <a href="/character.html" class="btn" style="margin-top: 1rem;">Ver Personagem</a>
+            </div>
+          `;
+          return;
+        }
+
+        const charRes = await fetch(`${API}/character/${charId}`);
+        const char = await charRes.json();
+
+        const html = `
+          <div class="card">
+            <h2>Marcos de ${char.name}</h2>
+            <p style="font-size: 0.85rem; color: var(--text-secondary);">${data.total} marcos registrados</p>
+          </div>
+          <div class="card">
+            ${data.milestones.map(m => `
+              <div class="milestone" style="margin-bottom: 1.2rem; padding-bottom: 1.2rem; border-bottom: 1px solid var(--border);">
+                <div class="milestone-icon">${milestoneIcons[m.triggerType] || '📌'}</div>
+                <div class="milestone-content">
+                  <h4>${m.title}</h4>
+                  <p>${m.description}</p>
+                  <div style="margin-top: 0.3rem;">
+                    <span class="badge badge-${m.importance === 'decisive' ? 'primary' : m.importance === 'relevant' ? 'warning' : 'success'}">
+                      ${importanceLabels[m.importance]}
+                    </span>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.5rem;">
+                      ${new Date(m.occurredAt).toLocaleString('pt-BR')} · ${m.locationName}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        document.getElementById('content').innerHTML = html;
+      } catch {
+        document.getElementById('content').innerHTML = '<p class="error">Erro ao carregar marcos.</p>';
+      }
+    }
+
+    loadMilestones();
+  </script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/map.html" class="active">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+    <div id="content">
+      <p class="loading">Carregando mapa...</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+
+    const regionColors = {
+      planicies_arvel: '#4ecca3',
+      costa_maren: '#45b7d1',
+      serra_duren: '#96c93d',
+      floresta_elden: '#6c5ce7',
+      korrath: '#e94560',
+    };
+
+    async function loadMap() {
+      try {
+        const res = await fetch(`${API}/world/map`);
+        const data = await res.json();
+
+        const eventsRes = await fetch(`${API}/world/events`);
+        const eventsData = await eventsRes.json();
+
+        let html = `
+          <div class="card">
+            <h2>Mapa do Mundo</h2>
+            <p style="font-size: 0.85rem; color: var(--text-secondary);">${data.regions.length} regiões, ${data.locations.length} localidades</p>
+          </div>
+        `;
+
+        for (const region of data.regions) {
+          const regionLocations = data.locations.filter(l => l.regionId === region.id);
+          const regionEvents = eventsData.events.filter(e => e.regionId === region.id);
+
+          html += `
+            <div class="card" style="border-left: 4px solid ${regionColors[region.id] || 'var(--accent)'};">
+              <h3 style="color: ${regionColors[region.id] || 'var(--accent)'};">${region.name}</h3>
+              <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Clima:</strong> ${region.climate}</p>
+              <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Cultura:</strong> ${region.culture}</p>
+              <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Poder Dominante:</strong> ${region.dominantPower}</p>
+              <p style="font-size: 0.85rem; font-style: italic; color: var(--text-secondary); margin-bottom: 1rem;">${region.narrativeTone}</p>
+
+              ${regionEvents.length > 0 ? `
+                <div style="margin-bottom: 1rem;">
+                  <strong style="font-size: 0.85rem;">⚡ Eventos Ativos:</strong>
+                  ${regionEvents.map(e => `
+                    <div style="margin-left: 1rem; margin-top: 0.3rem; font-size: 0.85rem;">
+                      <strong>${e.name}</strong> — ${e.description}
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+
+              <h3 style="font-size: 0.95rem; margin-top: 0.5rem;">Localidades (${regionLocations.length})</h3>
+              <div class="grid grid-2">
+                ${regionLocations.map(loc => `
+                  <div class="location-card card">
+                    <h4>${loc.name}</h4>
+                    <p>${loc.description}</p>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">
+                      População: ${loc.population} · Tipo: ${loc.type}
+                    </p>
+                    ${loc.connections && loc.connections.length > 0 ? `
+                      <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">
+                        Conexões: ${loc.connections.map(c => c.locationId).join(', ')}
+                      </p>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        document.getElementById('content').innerHTML = html;
+      } catch {
+        document.getElementById('content').innerHTML = '<p class="error">Erro ao carregar mapa.</p>';
+      }
+    }
+
+    loadMap();
+  </script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personagem — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html" class="active">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+    <div id="content">
+      <p class="loading">Carregando personagem...</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+
+    async function loadCharacter() {
+      let charId = localStorage.getItem('currentCharacterId');
+
+      if (!charId) {
+        const playerId = localStorage.getItem('playerId') || 'player-001';
+        try {
+          const loginRes = await fetch(`${API}/player/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playerId }),
+          });
+          const loginData = await loginRes.json();
+          if (loginData.characters.length > 0) {
+            charId = loginData.characters[0].id;
+            localStorage.setItem('currentCharacterId', charId);
+          } else {
+            document.getElementById('content').innerHTML = `
+              <div class="card">
+                <h2>Nenhum personagem encontrado</h2>
+                <p>Você ainda não criou um personagem.</p>
+                <a href="/create.html" class="btn" style="margin-top: 1rem;">Criar Personagem</a>
+              </div>
+            `;
+            return;
+          }
+        } catch {
+          document.getElementById('content').innerHTML = '<p class="error">Erro ao conectar ao servidor.</p>';
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch(`${API}/character/${charId}`);
+        if (!res.ok) {
+          document.getElementById('content').innerHTML = '<p class="error">Personagem não encontrado.</p>';
+          return;
+        }
+
+        const char = await res.json();
+        renderCharacter(char);
+      } catch {
+        document.getElementById('content').innerHTML = '<p class="error">Erro ao carregar personagem.</p>';
+      }
+    }
+
+    function renderCharacter(char) {
+      const moodEmojis = {
+        animado: '😊', melancolico: '😢', irritado: '😠',
+        ansioso: '😰', repulsado: '🤢', surpreso: '😲', neutro: '😐'
+      };
+
+      const html = `
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <h2>${char.name}</h2>
+              <span class="badge badge-primary">${char.vocation.replace('_', ' ')}</span>
+              ${char.emergentSpecialization ? `<span class="badge badge-success" style="margin-left: 0.5rem;">${char.emergentSpecialization}</span>` : ''}
+              ${char.isNpc ? '<span class="badge badge-warning" style="margin-left: 0.5rem;">NPC</span>' : ''}
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+              Próximo tick: ${new Date(char.nextTickAt).toLocaleString('pt-BR')}
+            </div>
+          </div>
+          <p style="margin-top: 0.8rem; font-size: 0.9rem;">${char.bio}</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h3>Localização</h3>
+            <p>${char.locationId}</p>
+            ${char.activityId ? `<p style="margin-top: 0.3rem;">Atividade: ${char.activityId}</p>` : ''}
+            ${char.travelDestination ? `<p style="margin-top: 0.3rem;">Viajando para: ${char.travelDestination}</p>` : ''}
+          </div>
+
+          <div class="card">
+            <h3>Humor</h3>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span style="font-size: 2rem;">${moodEmojis[char.mood.state] || '😐'}</span>
+              <div>
+                <strong style="text-transform: capitalize;">${char.mood.state}</strong>
+              </div>
+            </div>
+            <div style="margin-top: 0.5rem;">
+              ${Object.entries(char.mood.values).map(([k, v]) => `
+                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.2rem;">
+                  <span style="text-transform: capitalize;">${translateMood(k)}</span>
+                  <span>${v}/10</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Traços de Personalidade</h3>
+          <div class="grid grid-2">
+            ${Object.entries(char.traits).map(([k, v]) => `
+              <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                  <span>${translateTrait(k)}</span>
+                  <span>${v}/10</span>
+                </div>
+                <div class="trait-bar">
+                  <div class="trait-bar-fill" style="width: ${v * 10}%"></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="card stat">
+            <div class="stat-value">${char.faith}</div>
+            <div class="stat-label">Fé</div>
+          </div>
+          <div class="card stat">
+            <div class="stat-value">${char.objective.difficulty}</div>
+            <div class="stat-label">Dificuldade</div>
+          </div>
+          <div class="card stat">
+            <div class="stat-value">${char.richTickCount}</div>
+            <div class="stat-label">Ticks Ricos</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Objetivo</h3>
+          <p>${char.objective.description}</p>
+          <span class="badge badge-primary" style="margin-top: 0.3rem;">${char.objective.type}</span>
+          <p style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">Progresso: ${char.objective.progressScore}</p>
+        </div>
+
+        ${char.commitments && char.commitments.length > 0 ? `
+          <div class="card">
+            <h3>Compromissos</h3>
+            ${char.commitments.map(c => `
+              <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px;">
+                <strong>${c.description}</strong>
+                <span class="badge badge-${c.urgency === 'high' ? 'primary' : c.urgency === 'medium' ? 'warning' : 'success'}" style="margin-left: 0.5rem;">${c.urgency}</span>
+                <p style="font-size: 0.8rem; color: var(--text-secondary);">Prazo: ${new Date(c.deadline).toLocaleString('pt-BR')}</p>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
+
+        <div class="card">
+          <h3>Informações</h3>
+          <div class="grid grid-2">
+            <div>
+              <p style="font-size: 0.85rem;"><strong>Relações:</strong> ${char.relationsCount}</p>
+              <p style="font-size: 0.85rem;"><strong>Marcos:</strong> ${char.milestonesCount}</p>
+            </div>
+            <div>
+              <p style="font-size: 0.85rem;"><strong>Último login:</strong> ${new Date(char.lastPlayerLoginAt).toLocaleString('pt-BR')}</p>
+              <p style="font-size: 0.85rem;"><strong>ID:</strong> <code style="font-size: 0.75rem;">${char.id}</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
+          <a href="/diary.html" class="btn">Ver Diário</a>
+          <a href="/milestones.html" class="btn btn-secondary">Ver Marcos</a>
+          <a href="/interact.html" class="btn btn-secondary">Interagir</a>
+        </div>
+      `;
+
+      document.getElementById('content').innerHTML = html;
+    }
+
+    function translateTrait(trait) {
+      const map = {
+        openness: 'Abertura', conscientiousness: 'Conscienciosidade',
+        extraversion: 'Extroversão', emotionalStability: 'Estabilidade Emocional',
+        agreeableness: 'Agradabilidade',
+      };
+      return map[trait] || trait;
+    }
+
+    function translateMood(mood) {
+      const map = {
+        joy: 'Alegria', sadness: 'Tristeza', anger: 'Raiva',
+        fear: 'Medo', disgust: 'Nojo', surprise: 'Surpresa',
+      };
+      return map[mood] || mood;
+    }
+
+    loadCharacter();
+  </script>
+</body>
+</html>

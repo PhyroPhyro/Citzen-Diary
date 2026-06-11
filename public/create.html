@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Criar Personagem — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html" class="active">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+
+    <div id="intro-step">
+      <div class="card">
+        <h2>Criar Novo Personagem</h2>
+        <p>Responda 10 perguntas sobre como seu personagem se comporta. Suas respostas moldarão a personalidade dele — traços Big Five que influenciam todas as decisões que ele tomará.</p>
+        <p style="margin-top: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">Você não verá os valores numéricos. O sistema calcula tudo nos bastidores.</p>
+
+        <div class="form-group" style="margin-top: 1rem;">
+          <label for="playerId">Seu ID de Jogador</label>
+          <input type="text" id="playerId" placeholder="player-001" value="player-001">
+        </div>
+        <div class="form-group">
+          <label for="charName">Nome do Personagem</label>
+          <input type="text" id="charName" placeholder="Aldric" maxlength="100">
+        </div>
+        <div class="form-group">
+          <label for="charDesc">Descrição Livre</label>
+          <textarea id="charDesc" placeholder="Um jovem que busca seu lugar no mundo..." maxlength="500"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="vocation">Vocação</label>
+          <select id="vocation">
+            <option value="lavrador">Lavrador — Cultiva a terra, colhe e vende</option>
+            <option value="andarilho" selected>Andarilho — Viaja, observa, explora</option>
+            <option value="aprendiz_artesao">Aprendiz de Artesão — Constrói e cria</option>
+            <option value="aspirante_guarda">Aspirante a Guarda — Protege e vigia</option>
+            <option value="comerciante_ambulante">Comerciante Ambulante — Compra, vende, negocia</option>
+          </select>
+        </div>
+
+        <button class="btn" onclick="startQuestionnaire()">Começar Questionário</button>
+      </div>
+    </div>
+
+    <div id="questionnaire-step" style="display: none;">
+      <div class="card">
+        <div class="progress-bar">
+          <div class="progress-bar-fill" id="progress" style="width: 0%"></div>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          Pergunta <span id="qCurrent">1</span> de <span id="qTotal">10</span>
+        </p>
+        <h2 id="qText"></h2>
+        <div id="qOptions"></div>
+      </div>
+    </div>
+
+    <div id="result-step" style="display: none;">
+      <div class="card">
+        <h2>Personagem Criado!</h2>
+        <div id="resultContent"></div>
+        <div style="margin-top: 1rem;">
+          <button class="btn" onclick="viewCharacter()">Ver Personagem</button>
+          <a href="/" class="btn btn-secondary" style="margin-left: 0.5rem;">Voltar ao Início</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+    let questions = [];
+    let answers = [];
+    let currentQuestion = 0;
+    let createdCharacterId = null;
+
+    async function startQuestionnaire() {
+      const name = document.getElementById('charName').value.trim();
+      const desc = document.getElementById('charDesc').value.trim();
+      const vocation = document.getElementById('vocation').value;
+      const playerId = document.getElementById('playerId').value.trim();
+
+      if (!name) {
+        document.getElementById('status').innerHTML = '<div class="error">Digite um nome para o personagem.</div>';
+        return;
+      }
+      if (!desc) {
+        document.getElementById('status').innerHTML = '<div class="error">Digite uma descrição para o personagem.</div>';
+        return;
+      }
+
+      localStorage.setItem('playerId', playerId);
+      localStorage.setItem('pendingChar', JSON.stringify({ name, description: desc, vocation, playerId }));
+
+      try {
+        const res = await fetch(`${API}/questionnaire`);
+        const data = await res.json();
+        questions = data.questions;
+        document.getElementById('qTotal').textContent = questions.length;
+        document.getElementById('intro-step').style.display = 'none';
+        document.getElementById('questionnaire-step').style.display = 'block';
+        showQuestion(0);
+      } catch {
+        document.getElementById('status').innerHTML = '<div class="error">Erro ao carregar questionário.</div>';
+      }
+    }
+
+    function showQuestion(index) {
+      currentQuestion = index;
+      const q = questions[index];
+      document.getElementById('qCurrent').textContent = index + 1;
+      document.getElementById('progress').style.width = `${((index) / questions.length) * 100}%`;
+      document.getElementById('qText').textContent = q.text;
+
+      const optionsHtml = q.options.map(o => `
+        <button class="question-option" onclick="selectOption('${o.letter}')">
+          <strong>${o.letter}.</strong> ${o.text}
+        </button>
+      `).join('');
+      document.getElementById('qOptions').innerHTML = optionsHtml;
+    }
+
+    function selectOption(letter) {
+      answers.push({ questionId: questions[currentQuestion].id, optionLetter: letter });
+
+      if (currentQuestion < questions.length - 1) {
+        showQuestion(currentQuestion + 1);
+      } else {
+        submitCharacter();
+      }
+    }
+
+    async function submitCharacter() {
+      document.getElementById('progress').style.width = '100%';
+      document.getElementById('qOptions').innerHTML = '<p class="loading">Gerando seu personagem...</p>';
+
+      const pending = JSON.parse(localStorage.getItem('pendingChar'));
+
+      try {
+        const res = await fetch(`${API}/character/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...pending, answers }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Erro ao criar personagem');
+        }
+
+        const data = await res.json();
+        createdCharacterId = data.character.id;
+        localStorage.setItem('currentCharacterId', createdCharacterId);
+
+        document.getElementById('questionnaire-step').style.display = 'none';
+        document.getElementById('result-step').style.display = 'block';
+
+        const traits = data.character.traits;
+        document.getElementById('resultContent').innerHTML = `
+          <div class="grid grid-2">
+            <div>
+              <h3>${data.character.name}</h3>
+              <span class="badge badge-primary">${data.character.vocation.replace('_', ' ')}</span>
+              <p style="margin-top: 0.5rem; font-size: 0.9rem;">${data.character.bio}</p>
+            </div>
+            <div>
+              <h3>Traços de Personalidade</h3>
+              ${Object.entries(traits).map(([k, v]) => `
+                <div style="margin-bottom: 0.5rem;">
+                  <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                    <span>${translateTrait(k)}</span>
+                    <span>${v}/10</span>
+                  </div>
+                  <div class="trait-bar">
+                    <div class="trait-bar-fill" style="width: ${v * 10}%"></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('status').innerHTML = `<div class="error">${err.message}</div>`;
+        document.getElementById('qOptions').innerHTML = '<button class="btn" onclick="showQuestion(0)">Tentar Novamente</button>';
+      }
+    }
+
+    function translateTrait(trait) {
+      const map = {
+        openness: 'Abertura',
+        conscientiousness: 'Conscienciosidade',
+        extraversion: 'Extroversão',
+        emotionalStability: 'Estabilidade Emocional',
+        agreeableness: 'Agradabilidade',
+      };
+      return map[trait] || trait;
+    }
+
+    function viewCharacter() {
+      window.location.href = '/character.html';
+    }
+  </script>
+</body>
+</html>

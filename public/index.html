@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/" class="active">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+
+    <div class="card">
+      <h2>Bem-vindo a Veldra</h2>
+      <p>Citizen Diary é um jogo de simulação de vida onde personagens autônomos vivem, trabalham e evoluem enquanto você está fora. Cada personagem tem personalidade própria, tomada de decisão determinística e um diário narrativo gerado por IA.</p>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="card stat">
+        <div class="stat-value" id="charCount">-</div>
+        <div class="stat-label">Personagens</div>
+      </div>
+      <div class="card stat">
+        <div class="stat-value" id="eventCount">-</div>
+        <div class="stat-label">Eventos Ativos</div>
+      </div>
+      <div class="card stat">
+        <div class="stat-value">5</div>
+        <div class="stat-label">Regiões</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Seus Personagens</h2>
+      <div id="characters">
+        <p class="loading">Carregando...</p>
+      </div>
+      <div style="margin-top: 1rem;">
+        <a href="/create.html" class="btn">Criar Novo Personagem</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Eventos Globais</h2>
+      <div id="events">
+        <p class="loading">Carregando...</p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0 — Backend-first life simulation</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+
+    async function loadDashboard() {
+      try {
+        const healthRes = await fetch(`${API}/health`);
+        const health = await healthRes.json();
+        document.getElementById('status').innerHTML = `<div class="success">Servidor online — ${health.environment}</div>`;
+      } catch {
+        document.getElementById('status').innerHTML = `<div class="error">Servidor offline</div>`;
+        return;
+      }
+
+      try {
+        const eventsRes = await fetch(`${API}/world/events`);
+        const eventsData = await eventsRes.json();
+        document.getElementById('eventCount').textContent = eventsData.total;
+
+        const eventsHtml = eventsData.events.map(e => `
+          <div class="milestone" style="margin-bottom: 0.5rem;">
+            <div class="milestone-icon">⚡</div>
+            <div class="milestone-content">
+              <h4>${e.name}</h4>
+              <p>${e.description}</p>
+            </div>
+          </div>
+        `).join('');
+        document.getElementById('events').innerHTML = eventsHtml || '<p>Nenhum evento ativo no momento.</p>';
+      } catch {
+        document.getElementById('events').innerHTML = '<p class="error">Erro ao carregar eventos</p>';
+      }
+
+      try {
+        const playerId = localStorage.getItem('playerId') || 'player-001';
+        const loginRes = await fetch(`${API}/player/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ playerId }),
+        });
+        const loginData = await loginRes.json();
+        document.getElementById('charCount').textContent = loginData.charactersCount;
+
+        if (loginData.characters.length === 0) {
+          document.getElementById('characters').innerHTML = '<p>Você ainda não tem personagens. Crie um para começar!</p>';
+        } else {
+          const charsHtml = loginData.characters.map(c => `
+            <div class="card" style="cursor: pointer;" onclick="viewCharacter('${c.id}')">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <h3>${c.name}</h3>
+                  <span class="badge badge-primary">${c.vocation.replace('_', ' ')}</span>
+                </div>
+                <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                  Último tick: ${new Date(c.lastTickAt).toLocaleString('pt-BR')}
+                </span>
+              </div>
+            </div>
+          `).join('');
+          document.getElementById('characters').innerHTML = charsHtml;
+        }
+      } catch {
+        document.getElementById('characters').innerHTML = '<p class="error">Erro ao carregar personagens</p>';
+      }
+    }
+
+    function viewCharacter(id) {
+      localStorage.setItem('currentCharacterId', id);
+      window.location.href = '/character.html';
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

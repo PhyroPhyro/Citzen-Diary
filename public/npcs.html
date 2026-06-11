@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NPCs — Citizen Diary</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="container">
+      <h1>Citizen <span>Diary</span></h1>
+      <nav>
+        <a href="/">Início</a>
+        <a href="/create.html">Criar</a>
+        <a href="/character.html">Personagem</a>
+        <a href="/diary.html">Diário</a>
+        <a href="/milestones.html">Marcos</a>
+        <a href="/interact.html">Interagir</a>
+        <a href="/npcs.html" class="active">NPCs</a>
+        <a href="/npcs.html">NPCs</a><a href="/map.html">Mapa</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div id="status"></div>
+
+    <div class="card">
+      <h2>NPCs do Mundo</h2>
+      <p style="font-size: 0.9rem; color: var(--text-secondary);">Personagens não-jogadores que povoam o mundo. Eles têm ocupações, personalidades e memórias.</p>
+      <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button class="btn" onclick="generateNPC()">Gerar NPC Aleatório</button>
+        <button class="btn btn-secondary" onclick="processDecay()">Processar Decay</button>
+      </div>
+    </div>
+
+    <div id="npcList">
+      <p class="loading">Carregando NPCs...</p>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Citizen Diary v0.1.0</p>
+    </div>
+  </footer>
+
+  <script>
+    const API = '';
+
+    async function loadNPCs() {
+      try {
+        const res = await fetch(`${API}/npcs`);
+        const data = await res.json();
+
+        if (data.npcs.length === 0) {
+          document.getElementById('npcList').innerHTML = `
+            <div class="card">
+              <h2>Nenhum NPC Ainda</h2>
+              <p>NPCs são gerados conforme seu personagem explora o mundo. Use o botão acima para gerar um manualmente.</p>
+            </div>
+          `;
+          return;
+        }
+
+        const html = `
+          <div class="card">
+            <h2>${data.total} NPCs</h2>
+          </div>
+          <div class="grid grid-2">
+            ${data.npcs.map(npc => `
+              <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <h3>${npc.name}</h3>
+                  ${npc.isNamedByPlayer ? '<span class="badge badge-success">Nomeado</span>' : '<span class="badge badge-warning">Desconhecido</span>'}
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary);"><strong>Ocupação:</strong> ${npc.occupation}</p>
+                <p style="font-size: 0.85rem; color: var(--text-secondary);"><strong>Traço:</strong> ${npc.dominantTrait}</p>
+                <p style="font-size: 0.85rem; margin-top: 0.5rem;">${npc.physicalDescription}</p>
+                <p style="font-size: 0.85rem; font-style: italic; color: var(--text-secondary); margin-top: 0.3rem;">"${npc.firstImpression}"</p>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                  ${npc.locationId} · Criado em ${new Date(npc.createdAt).toLocaleDateString('pt-BR')}
+                </p>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        document.getElementById('npcList').innerHTML = html;
+      } catch {
+        document.getElementById('npcList').innerHTML = '<p class="error">Erro ao carregar NPCs.</p>';
+      }
+    }
+
+    async function generateNPC() {
+      const locations = ['veldra', 'arvel', 'maren', 'duren', 'elden', 'korrath'];
+      const locationId = locations[Math.floor(Math.random() * locations.length)];
+
+      try {
+        const res = await fetch(`${API}/npc/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ locationId }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Erro ao gerar NPC');
+        }
+
+        const data = await res.json();
+        document.getElementById('status').innerHTML = `<div class="success">NPC "${data.npc.name}" gerado em ${locationId}!</div>`;
+        loadNPCs();
+      } catch (err) {
+        document.getElementById('status').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    async function processDecay() {
+      try {
+        const res = await fetch(`${API}/system/process-decay`, { method: 'POST' });
+        const data = await res.json();
+        document.getElementById('status').innerHTML = `<div class="success">${data.message}</div>`;
+      } catch {
+        document.getElementById('status').innerHTML = '<div class="error">Erro ao processar decay.</div>';
+      }
+    }
+
+    loadNPCs();
+  </script>
+</body>
+</html>
