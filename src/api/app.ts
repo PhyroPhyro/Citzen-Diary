@@ -6,6 +6,8 @@ import { createRoutes } from './routes';
 import { DBAdapter } from '../db';
 import { QueueAdapter } from '../queue';
 import { LLMProvider } from '../llm';
+import { wsServer } from './websocket';
+import { Server } from 'http';
 
 dotenv.config();
 
@@ -33,6 +35,7 @@ export function setupAPI(deps: { db: DBAdapter; queue: QueueAdapter; llm: LLMPro
         events: 'GET /world/events',
         map: 'GET /world/map',
         suggestion: 'POST /character/:id/suggestion',
+        suggestionsHistory: 'GET /character/:id/suggestions',
         pray: 'POST /character/:id/pray',
         nameNpc: 'POST /character/:id/name-npc',
         login: 'POST /player/login',
@@ -47,4 +50,9 @@ export function setupAPI(deps: { db: DBAdapter; queue: QueueAdapter; llm: LLMPro
   return app;
 }
 
-export { app };
+export function attachWebSocket(server: Server) {
+  wsServer.initialize(server);
+  return wsServer;
+}
+
+export { app, wsServer };

@@ -95,6 +95,14 @@
         </div>
         <button class="btn btn-secondary" onclick="nameNpc()">Batizar</button>
       </div>
+
+      <div class="card">
+        <h3>📜 Histórico de Sugestões</h3>
+        <p style="font-size: 0.9rem; color: var(--text-secondary);">Veja todas as sugestões enviadas e seu status.</p>
+        <div id="suggestionsList" style="margin-top: 0.5rem;">
+          <p class="loading">Carregando...</p>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -127,6 +135,8 @@
         document.getElementById('charName').textContent = char.name;
         document.getElementById('faithValue').textContent = `${char.faith}/10`;
         document.getElementById('interactContent').style.display = 'block';
+
+        loadSuggestions();
       } catch {
         document.getElementById('status').innerHTML = '<p class="error">Erro ao carregar.</p>';
       }
@@ -233,6 +243,48 @@
         document.getElementById('npcName').value = '';
       } catch (err) {
         document.getElementById('status').innerHTML = `<div class="error">${err.message}</div>`;
+      }
+    }
+
+    async function loadSuggestions() {
+      try {
+        const res = await fetch(`${API}/character/${currentCharId}/suggestions?limit=20`);
+        const data = await res.json();
+
+        if (data.suggestions.length === 0) {
+          document.getElementById('suggestionsList').innerHTML = '<p style="font-size: 0.85rem; color: var(--text-secondary);">Nenhuma sugestão enviada ainda.</p>';
+          return;
+        }
+
+        const typeLabels = { task: 'Ação', destination: 'Destino', vision: 'Visão' };
+        const html = data.suggestions.map(s => {
+          const statusBadge = s.processedAt
+            ? (s.wasFollowed
+              ? '<span class="badge badge-success">Seguida</span>'
+              : '<span class="badge badge-warning">Ignorada</span>')
+            : '<span class="badge badge-primary">Pendente</span>';
+
+          let detail = '';
+          if (s.action.taskId) detail = `Ação: ${s.action.taskId}`;
+          else if (s.action.locationId) detail = `Destino: ${s.action.locationId}`;
+          else if (s.action.text) detail = `"${s.action.text}"`;
+
+          return `
+            <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px; font-size: 0.85rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                <strong>${typeLabels[s.action.type] || s.action.type}</strong>
+                ${statusBadge}
+              </div>
+              ${detail ? `<div style="color: var(--text-secondary);">${detail}</div>` : ''}
+              ${s.action.message ? `<div style="color: var(--text-secondary); margin-top: 0.2rem;">"${s.action.message}"</div>` : ''}
+              <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">${new Date(s.createdAt).toLocaleString('pt-BR')}</div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('suggestionsList').innerHTML = html;
+      } catch {
+        document.getElementById('suggestionsList').innerHTML = '<p class="error">Erro ao carregar sugestões.</p>';
       }
     }
 

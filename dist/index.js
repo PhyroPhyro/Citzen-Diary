@@ -120,7 +120,9 @@ async function bootstrap() {
         console.log(`[Server] Listening on port ${PORT}`);
         console.log(`[Server] Health check: http://localhost:${PORT}/health`);
         console.log(`[Server] API docs: http://localhost:${PORT}/docs`);
+        console.log(`[Server] WebSocket: ws://localhost:${PORT}/ws`);
     });
+    const ws = (0, app_1.attachWebSocket)(server);
     (0, admin_cli_1.startAdminCLI)({ db, queue, llm });
     process.on('SIGINT', async () => {
         console.log('[Server] Shutting down...');

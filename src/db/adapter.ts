@@ -14,7 +14,7 @@ export interface DBAdapter {
   };
 
   diary: {
-    getByCharacterId(characterId: string, limit?: number): Promise<DiaryEntry[]>;
+    getByCharacterId(characterId: string, limit?: number, options?: { source?: string; search?: string }): Promise<DiaryEntry[]>;
     create(entry: Partial<DiaryEntry>): Promise<DiaryEntry>;
     getAnchored(characterId: string): Promise<DiaryEntry[]>;
     enforceLimit(characterId: string, limit: number): Promise<void>;
@@ -42,6 +42,7 @@ export interface DBAdapter {
 
   suggestions: {
     getPending(characterId: string): Promise<PendingPlayerAction | null>;
+    getByCharacterId(characterId: string, limit?: number): Promise<PendingPlayerAction[]>;
     create(data: Partial<PendingPlayerAction>): Promise<PendingPlayerAction>;
     markProcessed(id: string, wasFollowed: boolean): Promise<void>;
     replacePending(characterId: string, data: Partial<PendingPlayerAction>): Promise<PendingPlayerAction>;

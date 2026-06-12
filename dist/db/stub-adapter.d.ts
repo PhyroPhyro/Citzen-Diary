@@ -35,6 +35,7 @@ export declare class StubDBAdapter implements DBAdapter {
     };
     suggestions: {
         getPending(): Promise<null>;
+        getByCharacterId(): Promise<any[]>;
         create(): Promise<any>;
         markProcessed(): Promise<void>;
         replacePending(): Promise<any>;

@@ -136,9 +136,28 @@ class PostgreSQLAdapter {
         },
     };
     diary = {
-        getByCharacterId: async (characterId, limit = 20) => {
-            const result = await this.pool.query(`SELECT * FROM diary_entries WHERE character_id = $1
-         ORDER BY occurred_at DESC LIMIT $2`, [characterId, limit]);
+        getByCharacterId: async (characterId, limit = 20, options) => {
+            const conditions = ['character_id = $1'];
+            const params = [characterId];
+            let paramIdx = 2;
+            if (options?.source) {
+                if (options.source === 'grouped') {
+                    conditions.push(`is_grouped = true`);
+                }
+                else {
+                    conditions.push(`source = $${paramIdx}`);
+                    params.push(options.source);
+                    paramIdx++;
+                }
+            }
+            if (options?.search) {
+                conditions.push(`text ILIKE $${paramIdx}`);
+                params.push(`%${options.search}%`);
+                paramIdx++;
+            }
+            params.push(limit);
+            const result = await this.pool.query(`SELECT * FROM diary_entries WHERE ${conditions.join(' AND ')}
+         ORDER BY occurred_at DESC LIMIT $${paramIdx}`, params);
             return result.rows.map((row) => this.mapRowToDiaryEntry(row));
         },
         create: async (entry) => {
@@ -344,6 +363,10 @@ class PostgreSQLAdapter {
             if (result.rows.length === 0)
                 return null;
             return this.mapRowToPendingAction(result.rows[0]);
+        },
+        getByCharacterId: async (characterId, limit = 50) => {
+            const result = await this.pool.query("SELECT * FROM player_suggestions WHERE character_id = $1 ORDER BY created_at DESC LIMIT $2", [characterId, limit]);
+            return result.rows.map((row) => this.mapRowToPendingAction(row));
         },
         create: async (data) => {
             const now = new Date();

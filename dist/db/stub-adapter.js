@@ -41,6 +41,7 @@ class StubDBAdapter {
     };
     suggestions = {
         async getPending() { return null; },
+        async getByCharacterId() { return []; },
         async create() { return {}; },
         async markProcessed() { },
         async replacePending() { return {}; },

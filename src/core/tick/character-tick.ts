@@ -8,6 +8,7 @@ import { DBAdapter } from '../../db';
 import { QueueAdapter } from '../../queue';
 import { getTasksByVocation, UNIVERSAL_TASKS, getTaskById } from '../../data/tasks';
 import { getLocationById, getEventsByLocation } from '../../data/world';
+import { wsServer } from '../../api/websocket';
 import { processMilestones, MilestoneCheckContext, groupTrivialEntries, reevaluateSpecialization } from '../npc/milestone-system';
 import { calculateObjectiveProgress } from '../../models/objective';
 import { decayMood } from '../../models/mood';
@@ -124,6 +125,19 @@ export async function executeCharacterTick(
   if (diaryEntry) {
     await db.diary.create(diaryEntry);
     await db.diary.enforceLimit(character.id, 30);
+
+    wsServer.broadcastToCharacter(character.id, {
+      type: 'diary_entry',
+      data: {
+        id: diaryEntry.id,
+        text: diaryEntry.text,
+        source: diaryEntry.source,
+        occurredAt: diaryEntry.occurredAt,
+        locationName: diaryEntry.locationName,
+        isGrouped: diaryEntry.isGrouped,
+        isAnchored: diaryEntry.isAnchored,
+      },
+    });
   }
 
   if (character.objective && character.objective.progressScore < 100) {

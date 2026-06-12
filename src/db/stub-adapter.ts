@@ -47,6 +47,7 @@ export class StubDBAdapter implements DBAdapter {
 
   suggestions = {
     async getPending(): Promise<null> { return null; },
+    async getByCharacterId(): Promise<any[]> { return []; },
     async create(): Promise<any> { return {}; },
     async markProcessed(): Promise<void> {},
     async replacePending(): Promise<any> { return {}; },

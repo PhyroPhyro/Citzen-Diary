@@ -3,13 +3,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.app = void 0;
+exports.wsServer = exports.app = void 0;
 exports.setupAPI = setupAPI;
+exports.attachWebSocket = attachWebSocket;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 const routes_1 = require("./routes");
+const websocket_1 = require("./websocket");
+Object.defineProperty(exports, "wsServer", { enumerable: true, get: function () { return websocket_1.wsServer; } });
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 exports.app = app;
@@ -33,6 +36,7 @@ function setupAPI(deps) {
                 events: 'GET /world/events',
                 map: 'GET /world/map',
                 suggestion: 'POST /character/:id/suggestion',
+                suggestionsHistory: 'GET /character/:id/suggestions',
                 pray: 'POST /character/:id/pray',
                 nameNpc: 'POST /character/:id/name-npc',
                 login: 'POST /player/login',
@@ -44,5 +48,9 @@ function setupAPI(deps) {
         });
     });
     return app;
+}
+function attachWebSocket(server) {
+    websocket_1.wsServer.initialize(server);
+    return websocket_1.wsServer;
 }
 //# sourceMappingURL=app.js.map

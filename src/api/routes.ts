@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { createNPCForLocation, processNPCDecay, processRelationDecay, generateNPCName } from '../core/npc/npc-system';
 import { getLocationById } from '../data/world';
 import { processMilestones, groupTrivialEntries, reevaluateSpecialization } from '../core/npc/milestone-system';
+import { wsServer } from './websocket';
 
 const router = Router();
 
@@ -130,13 +131,24 @@ export function createRoutes(deps: AppDeps): Router {
       const limitParam = req.query.limit;
       const limitStr = typeof limitParam === 'string' ? limitParam : '20';
       const limit = Math.min(parseInt(limitStr) || 20, DIARY_LIMIT);
-      const entries = await db.diary.getByCharacterId(characterId, limit);
+
+      const sourceParam = typeof req.query.source === 'string' ? req.query.source : undefined;
+      const searchParam = typeof req.query.search === 'string' ? req.query.search : undefined;
+
+      const entries = await db.diary.getByCharacterId(characterId, limit, {
+        source: sourceParam,
+        search: searchParam,
+      });
 
       res.json({
         characterId,
         entries,
         total: entries.length,
         limit,
+        filters: {
+          source: sourceParam || null,
+          search: searchParam || null,
+        },
       });
     } catch (error) {
       console.error('[API] Error getting diary:', error);
@@ -265,12 +277,40 @@ export function createRoutes(deps: AppDeps): Router {
         action: { ...parsed.data, message: parsed.data.message ?? null },
       });
 
+      wsServer.broadcastToCharacter(characterId, {
+        type: 'suggestion_sent',
+        data: { actionId: action.id, type: action.action.type, createdAt: action.createdAt },
+      });
+
       res.status(201).json({
         message: 'Suggestion recorded',
         action,
       });
     } catch (error) {
       console.error('[API] Error creating suggestion:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.get('/character/:id/suggestions', async (req: Request, res: Response) => {
+    try {
+      const characterId = getParamId(req);
+      const character = await db.character.getById(characterId);
+      if (!character) {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+
+      const limitParam = req.query.limit;
+      const limit = Math.min(parseInt(limitParam as string) || 50, 100);
+      const suggestions = await db.suggestions.getByCharacterId(characterId, limit);
+
+      res.json({
+        characterId,
+        suggestions,
+        total: suggestions.length,
+      });
+    } catch (error) {
+      console.error('[API] Error getting suggestions:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
@@ -327,6 +367,19 @@ export function createRoutes(deps: AppDeps): Router {
         groupCount: null,
         isAnchored: false,
         milestoneId: null,
+      });
+
+      wsServer.broadcastToCharacter(characterId, {
+        type: 'diary_entry',
+        data: {
+          id: prayDiaryEntry.id,
+          text: prayDiaryEntry.text,
+          source: prayDiaryEntry.source,
+          occurredAt: prayDiaryEntry.occurredAt,
+          locationName: prayDiaryEntry.locationName,
+          isGrouped: prayDiaryEntry.isGrouped,
+          isAnchored: prayDiaryEntry.isAnchored,
+        },
       });
 
       res.json({

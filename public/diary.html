@@ -5,6 +5,55 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Diário — Citizen Diary</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .diary-controls {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .diary-controls select,
+    .diary-controls input {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--border-color, #444);
+      border-radius: 4px;
+      background: var(--bg-secondary, #2a2a2a);
+      color: var(--text-primary, #e0e0e0);
+      font-size: 0.85rem;
+    }
+    .diary-controls input {
+      flex: 1;
+      min-width: 150px;
+    }
+    .diary-controls button {
+      padding: 0.4rem 0.8rem;
+      border: none;
+      border-radius: 4px;
+      background: var(--accent, #4a9eff);
+      color: white;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .diary-controls button:hover {
+      opacity: 0.9;
+    }
+    .ws-status {
+      font-size: 0.75rem;
+      color: var(--text-secondary, #888);
+      margin-left: auto;
+    }
+    .ws-status.connected { color: #4caf50; }
+    .ws-status.disconnected { color: #f44336; }
+    .diary-entry.new-entry {
+      animation: fadeIn 0.5s ease-in;
+      border-left: 3px solid var(--accent, #4a9eff);
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -37,6 +86,60 @@
 
   <script>
     const API = '';
+    let ws = null;
+    let currentFilters = { source: null, search: null };
+
+    function connectWebSocket() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+      ws.onopen = () => {
+        const el = document.getElementById('wsStatus');
+        if (el) { el.textContent = '● Tempo real'; el.className = 'ws-status connected'; }
+      };
+
+      ws.onclose = () => {
+        const el = document.getElementById('wsStatus');
+        if (el) { el.textContent = '○ Desconectado'; el.className = 'ws-status disconnected'; }
+        setTimeout(connectWebSocket, 3000);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'diary_entry') {
+            prependDiaryEntry(msg.data);
+          }
+        } catch {}
+      };
+    }
+
+    function prependDiaryEntry(entry) {
+      const container = document.getElementById('entriesContainer');
+      if (!container) return;
+
+      const existing = document.getElementById(`entry-${entry.id}`);
+      if (existing) return;
+
+      const html = `
+        <div class="diary-entry new-entry" id="entry-${entry.id}">
+          <div class="date">${new Date(entry.occurredAt).toLocaleString('pt-BR')}</div>
+          <div class="text">${entry.text}</div>
+          <div class="meta">
+            ${entry.source === 'llm' ? '<span class="badge badge-primary">LLM</span>' : '<span class="badge badge-success">Template</span>'}
+            ${entry.isGrouped ? `<span class="badge badge-warning">×${entry.groupCount || 1}</span>` : ''}
+            ${entry.isAnchored ? '<span class="badge badge-success">Ancorada</span>' : ''}
+            ${entry.locationName ? ` · ${entry.locationName}` : ''}
+          </div>
+        </div>
+      `;
+      container.insertAdjacentHTML('afterbegin', html);
+
+      setTimeout(() => {
+        const el = document.getElementById(`entry-${entry.id}`);
+        if (el) el.classList.remove('new-entry');
+      }, 2000);
+    }
 
     async function loadDiary() {
       const charId = localStorage.getItem('currentCharacterId');
@@ -52,28 +155,49 @@
       }
 
       try {
-        const res = await fetch(`${API}/character/${charId}/diary?limit=30`);
+        const params = new URLSearchParams({ limit: '30' });
+        if (currentFilters.source) params.set('source', currentFilters.source);
+        if (currentFilters.search) params.set('search', currentFilters.search);
+
+        const res = await fetch(`${API}/character/${charId}/diary?${params}`);
         const data = await res.json();
 
         if (data.entries.length === 0) {
+          const msg = currentFilters.source || currentFilters.search
+            ? 'Nenhuma entrada encontrada com os filtros atuais.'
+            : 'Seu personagem ainda não registrou nenhuma entrada no diário. Ele começará a escrever após o primeiro tick.';
           document.getElementById('content').innerHTML = `
             <div class="card">
               <h2>Diário Vazio</h2>
-              <p>Seu personagem ainda não registrou nenhuma entrada no diário. Ele começará a escrever após o primeiro tick.</p>
+              <p>${msg}</p>
               <a href="/character.html" class="btn" style="margin-top: 1rem;">Ver Personagem</a>
             </div>
           `;
           return;
         }
 
+        const charRes = await fetch(`${API}/character/${charId}`);
+        const char = await charRes.json();
+
         const html = `
           <div class="card">
-            <h2>Diário de <span id="charName"></span></h2>
+            <h2>Diário de ${char.name}</h2>
             <p style="font-size: 0.85rem; color: var(--text-secondary);">${data.total} entradas</p>
+            <div class="diary-controls">
+              <select id="filterSource" onchange="applyFilters()">
+                <option value="">Todos os tipos</option>
+                <option value="llm" ${currentFilters.source === 'llm' ? 'selected' : ''}>LLM</option>
+                <option value="template" ${currentFilters.source === 'template' ? 'selected' : ''}>Template</option>
+                <option value="grouped" ${currentFilters.source === 'grouped' ? 'selected' : ''}>Agrupadas</option>
+              </select>
+              <input type="text" id="searchInput" placeholder="Buscar no diário..." value="${currentFilters.search || ''}" onkeydown="if(event.key==='Enter')applyFilters()">
+              <button onclick="applyFilters()">Buscar</button>
+              <span id="wsStatus" class="ws-status disconnected">○ Conectando...</span>
+            </div>
           </div>
-          <div class="card">
+          <div class="card" id="entriesContainer">
             ${data.entries.map(e => `
-              <div class="diary-entry">
+              <div class="diary-entry" id="entry-${e.id}">
                 <div class="date">${new Date(e.occurredAt).toLocaleString('pt-BR')}</div>
                 <div class="text">${e.text}</div>
                 <div class="meta">
@@ -89,16 +213,21 @@
         `;
 
         document.getElementById('content').innerHTML = html;
-
-        const charRes = await fetch(`${API}/character/${charId}`);
-        const char = await charRes.json();
-        document.getElementById('charName').textContent = char.name;
       } catch {
         document.getElementById('content').innerHTML = '<p class="error">Erro ao carregar diário.</p>';
       }
     }
 
+    function applyFilters() {
+      const sourceEl = document.getElementById('filterSource');
+      const searchEl = document.getElementById('searchInput');
+      currentFilters.source = sourceEl ? sourceEl.value || null : null;
+      currentFilters.search = searchEl ? searchEl.value.trim() || null : null;
+      loadDiary();
+    }
+
     loadDiary();
+    connectWebSocket();
   </script>
 </body>
 </html>

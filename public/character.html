@@ -134,6 +134,7 @@
 
         <div class="card">
           <h3>Traços de Personalidade</h3>
+          <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.8rem;">Os cinco traços fundamentais que moldam as decisões do seu personagem (escala 0–10).</p>
           <div class="grid grid-2">
             ${Object.entries(char.traits).map(([k, v]) => `
               <div>
@@ -144,6 +145,7 @@
                 <div class="trait-bar">
                   <div class="trait-bar-fill" style="width: ${v * 10}%"></div>
                 </div>
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.15rem;">${translateTraitDesc(k)}</div>
               </div>
             `).join('')}
           </div>
@@ -215,6 +217,17 @@
         agreeableness: 'Agradabilidade',
       };
       return map[trait] || trait;
+    }
+
+    function translateTraitDesc(trait) {
+      const map = {
+        openness: 'Curiosidade e criatividade vs. pragmatismo',
+        conscientiousness: 'Organização e disciplina vs. espontaneidade',
+        extraversion: 'Sociabilidade e energia externa vs. introspecção',
+        emotionalStability: 'Resiliência emocional vs. sensibilidade',
+        agreeableness: 'Cooperação e empatia vs. competitividade',
+      };
+      return map[trait] || '';
     }
 
     function translateMood(mood) {

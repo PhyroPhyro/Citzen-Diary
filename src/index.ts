@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { setupAPI } from './api/app';
+import { setupAPI, attachWebSocket } from './api/app';
 import { createDBAdapter, PostgreSQLAdapter } from './db';
 import { createQueueAdapter, BullMQAdapter } from './queue';
 import { createLLMProvider } from './llm';
@@ -91,7 +91,10 @@ async function bootstrap() {
     console.log(`[Server] Listening on port ${PORT}`);
     console.log(`[Server] Health check: http://localhost:${PORT}/health`);
     console.log(`[Server] API docs: http://localhost:${PORT}/docs`);
+    console.log(`[Server] WebSocket: ws://localhost:${PORT}/ws`);
   });
+
+  const ws = attachWebSocket(server);
 
   startAdminCLI({ db, queue, llm });
 

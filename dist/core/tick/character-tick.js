@@ -8,6 +8,7 @@ const narrative_state_1 = require("../decision/narrative-state");
 const llm_context_1 = require("../../diary/llm-context");
 const generator_1 = require("../../diary/generator");
 const world_1 = require("../../data/world");
+const websocket_1 = require("../../api/websocket");
 const milestone_system_1 = require("../npc/milestone-system");
 const objective_1 = require("../../models/objective");
 const mood_1 = require("../../models/mood");
@@ -104,6 +105,18 @@ async function executeCharacterTick(character, db, queue, llm) {
     if (diaryEntry) {
         await db.diary.create(diaryEntry);
         await db.diary.enforceLimit(character.id, 30);
+        websocket_1.wsServer.broadcastToCharacter(character.id, {
+            type: 'diary_entry',
+            data: {
+                id: diaryEntry.id,
+                text: diaryEntry.text,
+                source: diaryEntry.source,
+                occurredAt: diaryEntry.occurredAt,
+                locationName: diaryEntry.locationName,
+                isGrouped: diaryEntry.isGrouped,
+                isAnchored: diaryEntry.isAnchored,
+            },
+        });
     }
     if (character.objective && character.objective.progressScore < 100) {
         const progressDelta = (0, objective_1.calculateObjectiveProgress)(task.id, character.objective.type);
