@@ -43,6 +43,7 @@ function createTestCharacter() {
         isNpc: false,
         emergentSpecialization: null,
         richTickCount: 0,
+        lastPrayAt: null,
     };
 }
 (0, vitest_1.describe)('generateTemplateEntry', () => {

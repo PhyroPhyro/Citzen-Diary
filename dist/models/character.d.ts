@@ -43,6 +43,7 @@ export interface Character {
     isNpc: boolean;
     emergentSpecialization: string | null;
     richTickCount: number;
+    lastPrayAt: Date | null;
 }
 export interface CharacterStatus {
     name: string;

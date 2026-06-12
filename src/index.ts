@@ -80,6 +80,7 @@ async function bootstrap() {
   }
 
   const scheduler = new WorldTickScheduler(db, queue, llm);
+  (global as any).__scheduler = scheduler;
   scheduler.start();
 
   const app = setupAPI({ db, queue, llm });

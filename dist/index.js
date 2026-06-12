@@ -112,6 +112,7 @@ async function bootstrap() {
         process.exit(1);
     }
     const scheduler = new world_tick_scheduler_1.WorldTickScheduler(db, queue, llm);
+    global.__scheduler = scheduler;
     scheduler.start();
     const app = (0, app_1.setupAPI)({ db, queue, llm });
     const PORT = process.env.PORT || 3000;

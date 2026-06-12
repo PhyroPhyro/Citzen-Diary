@@ -47,6 +47,7 @@ function createMockCharacter(overrides: Partial<Character> = {}): Character {
     isNpc: false,
     emergentSpecialization: null,
     richTickCount: 0,
+    lastPrayAt: null,
     ...overrides,
   };
 }

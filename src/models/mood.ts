@@ -44,3 +44,19 @@ export function getMoodModifier(value: number): number {
   if (value <= 9) return 2;
   return 3;
 }
+
+export function decayMood(mood: Mood, hoursElapsed: number): Mood {
+  const decayRate = 0.3 * hoursElapsed;
+  return {
+    joy: clampMood(mood.joy + (5 - mood.joy) * decayRate * 0.3),
+    sadness: clampMood(mood.sadness - mood.sadness * decayRate * 0.5),
+    anger: clampMood(mood.anger - mood.anger * decayRate * 0.5),
+    fear: clampMood(mood.fear - mood.fear * decayRate * 0.5),
+    disgust: clampMood(mood.disgust - mood.disgust * decayRate * 0.5),
+    surprise: clampMood(mood.surprise - mood.surprise * decayRate * 0.5),
+  };
+}
+
+function clampMood(value: number): number {
+  return Math.max(0, Math.min(10, Math.round(value * 10) / 10));
+}

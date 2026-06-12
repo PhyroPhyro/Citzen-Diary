@@ -44,6 +44,7 @@ function createTestCharacter(overrides = {}) {
         isNpc: false,
         emergentSpecialization: null,
         richTickCount: 0,
+        lastPrayAt: null,
         ...overrides,
     };
 }

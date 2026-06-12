@@ -40,6 +40,7 @@ const questionnaire_1 = require("../data/questionnaire");
 const models_1 = require("../models");
 const zod_1 = require("zod");
 const npc_system_1 = require("../core/npc/npc-system");
+const world_1 = require("../data/world");
 const milestone_system_1 = require("../core/npc/milestone-system");
 const router = (0, express_1.Router)();
 function createRoutes(deps) {
@@ -281,13 +282,53 @@ function createRoutes(deps) {
             if (!character) {
                 return res.status(404).json({ error: 'Character not found' });
             }
+            const PRAY_COOLDOWN_MS = parseInt(process.env.PRAY_COOLDOWN_MS || '3600000', 10);
+            if (character.lastPrayAt) {
+                const timeSinceLastPray = Date.now() - new Date(character.lastPrayAt).getTime();
+                if (timeSinceLastPray < PRAY_COOLDOWN_MS) {
+                    const remainingMs = PRAY_COOLDOWN_MS - timeSinceLastPray;
+                    const remainingMin = Math.ceil(remainingMs / 60000);
+                    return res.status(429).json({
+                        error: 'Prayer on cooldown',
+                        remainingMinutes: remainingMin,
+                    });
+                }
+            }
+            const location = (0, world_1.getLocationById)(character.locationId);
             const newFaith = Math.min(10, character.faith + 1);
-            const updated = await db.character.update(characterId, { faith: newFaith });
+            const negativeMoods = ['sadness', 'anger', 'fear', 'disgust'];
+            const highestNegative = negativeMoods.reduce((max, key) => character.mood[key] > character.mood[max] ? key : max, 'sadness');
+            const newMood = { ...character.mood };
+            if (character.mood[highestNegative] > 0) {
+                newMood[highestNegative] = Math.max(0, character.mood[highestNegative] - 1);
+            }
+            const updated = await db.character.update(characterId, {
+                faith: newFaith,
+                mood: newMood,
+                lastPrayAt: new Date(),
+            });
+            const prayDiaryEntry = await db.diary.create({
+                characterId,
+                text: `Rezei. Senti uma presença familiar me ouvindo. Minha fé se fortaleceu.`,
+                source: 'template',
+                occurredAt: new Date(),
+                createdAt: new Date(),
+                locationId: character.locationId,
+                locationName: location?.name || 'Desconhecido',
+                taskId: 'pray',
+                moodState: 'animado',
+                isGrouped: false,
+                groupCount: null,
+                isAnchored: false,
+                milestoneId: null,
+            });
             res.json({
                 message: 'Prayer sent',
                 characterId,
                 faith: updated.faith,
                 previousFaith: character.faith,
+                moodReduced: highestNegative,
+                diaryEntry: prayDiaryEntry,
             });
         }
         catch (error) {
@@ -335,18 +376,26 @@ function createRoutes(deps) {
             }
             const characters = await db.character.getByPlayerId(parsed.data.playerId);
             const now = new Date();
+            const revertedNpcs = [];
             for (const char of characters) {
-                await db.character.update(char.id, { lastPlayerLoginAt: now });
+                const updates = { lastPlayerLoginAt: now };
+                if (char.isNpc) {
+                    updates.isNpc = false;
+                    revertedNpcs.push({ id: char.id, name: char.name });
+                }
+                await db.character.update(char.id, updates);
             }
             res.json({
                 message: 'Login recorded',
                 playerId: parsed.data.playerId,
                 charactersCount: characters.length,
+                revertedNpcs,
                 characters: characters.map((c) => ({
                     id: c.id,
                     name: c.name,
                     vocation: c.vocation,
                     lastTickAt: c.lastTickAt,
+                    wasNpc: revertedNpcs.some((r) => r.id === c.id),
                 })),
             });
         }
@@ -407,6 +456,11 @@ function createRoutes(deps) {
                 return res.status(400).json({ error: 'Invalid character data', details: parsed.error.errors });
             }
             const { name, description, playerId, vocation, answers } = parsed.data;
+            const existingChars = await db.character.getByPlayerId(playerId);
+            const nameTaken = existingChars.some((c) => c.name.toLowerCase() === name.toLowerCase());
+            if (nameTaken) {
+                return res.status(409).json({ error: 'Character name already exists' });
+            }
             const traits = (0, questionnaire_1.calculateTraits)(answers);
             const bioContext = `Name: ${name}. Description: ${description}. Traits: ${JSON.stringify(traits)}. Vocation: ${vocation}`;
             let bio = '';
@@ -425,6 +479,16 @@ function createRoutes(deps) {
                 aspirante_guarda: 'military',
                 comerciante_ambulante: 'economic',
             };
+            const objectiveType = objectiveTypeMap[vocation] || 'economic';
+            let objectiveDescription = `Establish yourself as a ${vocation}`;
+            try {
+                const objContext = `Character: ${name}, Vocation: ${vocation}, Type: ${objectiveType}. Generate a personal objective.`;
+                const objResult = await llm.generateSpecialization(objContext);
+                objectiveDescription = objResult.specialization;
+            }
+            catch {
+                // fallback mantido
+            }
             const character = await db.character.create({
                 name,
                 playerId,
@@ -433,8 +497,8 @@ function createRoutes(deps) {
                 traits,
                 objective: {
                     id: `obj-${Date.now()}`,
-                    description: `Establish yourself as a ${vocation}`,
-                    type: objectiveTypeMap[vocation] || 'economic',
+                    description: objectiveDescription,
+                    type: objectiveType,
                     difficulty: 1,
                     progressScore: 0,
                 },
@@ -621,6 +685,93 @@ function createRoutes(deps) {
         }
         catch (error) {
             console.error('[API] Error checking quota:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/admin/metrics', async (_req, res) => {
+        try {
+            const scheduler = global.__scheduler;
+            if (!scheduler) {
+                return res.status(503).json({ error: 'Scheduler not available' });
+            }
+            const metrics = scheduler.getMetrics();
+            res.json({ metrics });
+        }
+        catch (error) {
+            console.error('[API] Error getting metrics:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/admin/milestones/:characterId', async (req, res) => {
+        try {
+            const characterId = Array.isArray(req.params.characterId) ? req.params.characterId[0] : req.params.characterId;
+            const milestones = await db.milestones.getByCharacterId(characterId);
+            res.json({ milestones, total: milestones.length });
+        }
+        catch (error) {
+            console.error('[API] Error listing milestones:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.post('/admin/force-milestone', async (req, res) => {
+        try {
+            const schema = zod_1.z.object({
+                characterId: zod_1.z.string(),
+                triggerType: zod_1.z.string(),
+            });
+            const parsed = schema.safeParse(req.body);
+            if (!parsed.success) {
+                return res.status(400).json({ error: 'Invalid data', details: parsed.error.errors });
+            }
+            const character = await db.character.getById(parsed.data.characterId);
+            if (!character) {
+                return res.status(404).json({ error: 'Character not found' });
+            }
+            const milestone = await db.milestones.create({
+                characterId: parsed.data.characterId,
+                importance: 'relevant',
+                title: 'Forced milestone',
+                description: `Manually triggered: ${parsed.data.triggerType}`,
+                occurredAt: new Date(),
+                locationId: character.locationId,
+                locationName: 'Desconhecido',
+                triggerType: parsed.data.triggerType,
+                relatedCharacterIds: [],
+                relatedEventId: null,
+                diaryEntryId: null,
+                isActiveContext: true,
+            });
+            res.json({ message: 'Milestone created', milestone });
+        }
+        catch (error) {
+            console.error('[API] Error forcing milestone:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/admin/export-diary/:characterId', async (req, res) => {
+        try {
+            const characterId = Array.isArray(req.params.characterId) ? req.params.characterId[0] : req.params.characterId;
+            const entries = await db.diary.getByCharacterId(characterId, 1000);
+            const character = await db.character.getById(characterId);
+            const exportData = {
+                character: character ? { name: character.name, vocation: character.vocation } : null,
+                exportedAt: new Date().toISOString(),
+                totalEntries: entries.length,
+                entries: entries.map((e) => ({
+                    id: e.id,
+                    text: e.text,
+                    source: e.source,
+                    occurredAt: e.occurredAt,
+                    locationName: e.locationName,
+                    taskId: e.taskId,
+                    isAnchored: e.isAnchored,
+                    milestoneId: e.milestoneId,
+                })),
+            };
+            res.json(exportData);
+        }
+        catch (error) {
+            console.error('[API] Error exporting diary:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
     });

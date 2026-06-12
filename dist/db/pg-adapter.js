@@ -7,6 +7,9 @@ class PostgreSQLAdapter {
     constructor(connectionString) {
         this.pool = new pg_1.Pool({
             connectionString,
+            max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+            idleTimeoutMillis: parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '30000', 10),
+            connectionTimeoutMillis: parseInt(process.env.DB_POOL_CONNECT_TIMEOUT || '5000', 10),
         });
     }
     async connect() {
@@ -49,8 +52,8 @@ class PostgreSQLAdapter {
           name, player_id, vocation, position, bio, location_id, activity_id,
           travel_destination, traits, mood, faith, objective, commitments,
           last_tick_at, next_tick_at, last_player_login_at, is_npc,
-          emergent_specialization, rich_tick_count
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          emergent_specialization, rich_tick_count, last_pray_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING *`, [
                 data.name || 'Unknown',
                 data.playerId || 'anonymous',
@@ -71,6 +74,7 @@ class PostgreSQLAdapter {
                 data.isNpc || false,
                 data.emergentSpecialization || null,
                 data.richTickCount || 0,
+                data.lastPrayAt || null,
             ]);
             return this.mapRowToCharacter(result.rows[0]);
         },
@@ -101,6 +105,7 @@ class PostgreSQLAdapter {
                 is_npc: data.isNpc ?? existing.isNpc,
                 emergent_specialization: data.emergentSpecialization ?? existing.emergentSpecialization,
                 rich_tick_count: data.richTickCount ?? existing.richTickCount,
+                last_pray_at: data.lastPrayAt ?? existing.lastPrayAt,
             };
             for (const [col, val] of Object.entries(fieldMap)) {
                 fields.push(`${col} = $${idx}`);
@@ -405,6 +410,7 @@ class PostgreSQLAdapter {
             isNpc: row.is_npc,
             emergentSpecialization: row.emergent_specialization,
             richTickCount: Number(row.rich_tick_count),
+            lastPrayAt: row.last_pray_at ? new Date(row.last_pray_at) : null,
         };
     }
     mapRowToDiaryEntry(row) {

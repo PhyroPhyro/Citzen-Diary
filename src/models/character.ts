@@ -51,6 +51,7 @@ export interface Character {
 
   emergentSpecialization: string | null;
   richTickCount: number;
+  lastPrayAt: Date | null;
 }
 
 export interface CharacterStatus {

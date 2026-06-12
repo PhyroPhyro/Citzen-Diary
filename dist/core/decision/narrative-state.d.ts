@@ -1,12 +1,15 @@
 export interface RichStateCondition {
     key: string;
     description: string;
+    weight: number;
 }
 export declare const RICH_STATE_CONDITIONS: RichStateCondition[];
+export declare const RICH_STATE_THRESHOLD = 2;
 export interface NarrativeStateResult {
     isRich: boolean;
     conditions: string[];
     hasMoodConflict: boolean;
+    richnessScore: number;
 }
 export declare function classifyNarrativeState(taskId: string, score: number, moodModifier: number, context: {
     hasOtherCharacter: boolean;

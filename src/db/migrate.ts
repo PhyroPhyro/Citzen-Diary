@@ -22,6 +22,8 @@ async function runMigrations() {
       '008_relations.sql',
       '009_player_suggestions.sql',
       '010_seed_world.sql',
+      '011_performance_indexes.sql',
+      '012_add_last_pray_at.sql',
     ];
 
     for (const file of migrationFiles) {

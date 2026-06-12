@@ -10,6 +10,7 @@ import { getTasksByVocation, UNIVERSAL_TASKS, getTaskById } from '../../data/tas
 import { getLocationById, getEventsByLocation } from '../../data/world';
 import { processMilestones, MilestoneCheckContext, groupTrivialEntries, reevaluateSpecialization } from '../npc/milestone-system';
 import { calculateObjectiveProgress } from '../../models/objective';
+import { decayMood } from '../../models/mood';
 
 export interface TickResult {
   characterId: string;
@@ -132,6 +133,63 @@ export async function executeCharacterTick(
     character.objective.progressScore = newProgress;
   }
 
+  if (character.objective && character.objective.progressScore >= 100) {
+    const objectiveTypeMap: Record<string, string> = {
+      social: 'exploratory',
+      economic: 'social',
+      exploratory: 'artisanal',
+      spiritual: 'economic',
+      military: 'spiritual',
+      artisanal: 'military',
+    };
+    const newType = objectiveTypeMap[character.objective.type] || 'economic';
+    const newObjective = {
+      id: `obj-${Date.now()}`,
+      description: `New ${newType} objective after completing the previous one`,
+      type: newType,
+      difficulty: Math.min(5, character.objective.difficulty + 1),
+      progressScore: 0,
+    };
+    await db.character.update(character.id, { objective: newObjective as any });
+    character.objective = newObjective;
+  }
+
+  const hoursSinceLogin = (Date.now() - new Date(character.lastPlayerLoginAt).getTime()) / (1000 * 60 * 60);
+  const faithDecay = hoursSinceLogin > 24 ? Math.floor(hoursSinceLogin / 24) * 0.5 : 0;
+  if (faithDecay > 0 && character.faith > 1) {
+    const newFaith = Math.max(1, character.faith - faithDecay);
+    await db.character.update(character.id, { faith: newFaith });
+    character.faith = newFaith;
+  }
+
+  if (pendingSuggestion) {
+    const wasFollowed = pendingSuggestion.action.type === 'task' && pendingSuggestion.action.taskId === task.id;
+    await db.suggestions.markProcessed(pendingSuggestion.id, wasFollowed);
+    if (!wasFollowed && character.faith > 1) {
+      const newFaith = Math.max(1, character.faith - 0.5);
+      await db.character.update(character.id, { faith: newFaith });
+      character.faith = newFaith;
+    }
+  }
+
+  const tickCount = character.richTickCount || 0;
+  if (tickCount > 0 && tickCount % 10 === 0 && character.commitments.length < 3) {
+    const commitmentTasks = ['cultivate', 'forge_item', 'patrol', 'buy_goods', 'deliver_message'];
+    const randomTask = commitmentTasks[Math.floor(Math.random() * commitmentTasks.length)];
+    const deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const newCommitment = {
+      id: `commit-${Date.now()}`,
+      description: `Complete ${randomTask} within 24 hours`,
+      deadline,
+      urgency: 'medium' as const,
+      taskId: randomTask,
+      createdAt: new Date(),
+    };
+    const updatedCommitments = [...character.commitments, newCommitment];
+    await db.character.update(character.id, { commitments: updatedCommitments as any });
+    character.commitments = updatedCommitments;
+  }
+
   await groupTrivialEntries(character.id, db);
   await reevaluateSpecialization(character, db, llm);
 
@@ -168,11 +226,17 @@ export async function executeCharacterTick(
 
   const nextTickAt = new Date(Date.now() + interval);
 
+  const hoursSinceLastTick = character.lastTickAt
+    ? (Date.now() - new Date(character.lastTickAt).getTime()) / (1000 * 60 * 60)
+    : 0;
+  const decayedMood = hoursSinceLastTick > 0 ? decayMood(character.mood, hoursSinceLastTick) : character.mood;
+
   const characterUpdated: Partial<Character> = {
     lastTickAt: new Date(),
     nextTickAt,
     activityId: task.id,
     richTickCount: character.richTickCount,
+    mood: decayedMood,
   };
 
   await db.character.update(character.id, characterUpdated);

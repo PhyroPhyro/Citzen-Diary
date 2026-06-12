@@ -12,4 +12,5 @@ export declare function getDominantMood(mood: Mood): {
     value: number;
 };
 export declare function getMoodModifier(value: number): number;
+export declare function decayMood(mood: Mood, hoursElapsed: number): Mood;
 //# sourceMappingURL=mood.d.ts.map

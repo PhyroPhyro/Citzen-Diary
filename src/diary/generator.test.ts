@@ -43,6 +43,7 @@ function createTestCharacter(): Character {
     isNpc: false,
     emergentSpecialization: null,
     richTickCount: 0,
+    lastPrayAt: null,
   };
 }
 

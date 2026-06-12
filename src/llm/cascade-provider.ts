@@ -16,7 +16,9 @@ export class CascadeLLMProvider implements LLMProvider {
   private mock: MockLLMProvider;
   private currentLevel: 'gemini' | 'cerebras' | 'mock' = 'gemini';
   private lastGeminiFailure = 0;
-  private readonly GEMINI_RETRY_INTERVAL = 60 * 60 * 1000;
+  private lastCerebrasFailure = 0;
+  private readonly GEMINI_RETRY_INTERVAL = parseInt(process.env.LLM_RETRY_COOLDOWN_MS || '3600000', 10);
+  private readonly CEREBRAS_RETRY_INTERVAL = parseInt(process.env.CEREBRAS_RETRY_COOLDOWN_MS || '3600000', 10);
 
   constructor(geminiApiKey?: string, cerebrasApiKey?: string) {
     this.mock = new MockLLMProvider();
@@ -38,6 +40,16 @@ export class CascadeLLMProvider implements LLMProvider {
       if (timeSinceFailure >= this.GEMINI_RETRY_INTERVAL) {
         console.log('[LLM] Retrying Gemini after cooldown...');
         this.currentLevel = 'gemini';
+      }
+    }
+  }
+
+  resetToCerebras() {
+    if (this.currentLevel === 'mock' && this.cerebras) {
+      const timeSinceFailure = Date.now() - this.lastCerebrasFailure;
+      if (timeSinceFailure >= this.CEREBRAS_RETRY_INTERVAL) {
+        console.log('[LLM] Retrying Cerebras after cooldown...');
+        this.currentLevel = 'cerebras';
       }
     }
   }
@@ -74,6 +86,7 @@ export class CascadeLLMProvider implements LLMProvider {
     } catch (error) {
       console.error('[LLM] Cerebras failed:', error);
       if (this.isQuotaError(error)) {
+        this.lastCerebrasFailure = Date.now();
         console.warn('[LLM] Cerebras quota exceeded, falling back to Mock...');
         this.currentLevel = 'mock';
         throw error;
