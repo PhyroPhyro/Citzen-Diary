@@ -37,16 +37,16 @@ if %errorlevel% neq 0 (
 REM --- Check Redis via Docker ---
 echo.
 echo [2/3] Checking Redis...
-docker ps --filter "name=citizen-diary-redis" --format "{{.Names}}" | findstr "citizen-diary-redis" >nul 2>&1
+docker ps --filter "name=citizen-diary-redis" --format "{{.Names}}" 2>nul | findstr "citizen-diary-redis" >nul 2>&1
 if %errorlevel% equ 0 (
     echo   [OK] Redis container is running
 ) else (
     echo   [!!] Redis container not running
-    docker ps -a --filter "name=citizen-diary-redis" --format "{{.Names}}" | findstr "citizen-diary-redis" >nul 2>&1
+    docker start citizen-diary-redis >nul 2>&1
     if %errorlevel% equ 0 (
-        echo   [..] Starting existing container...
-        docker start citizen-diary-redis
+        echo   [..] Started existing container
     ) else (
+        docker rm citizen-diary-redis >nul 2>&1
         echo   [..] Creating new container...
         docker run -d --name citizen-diary-redis -p 6379:6379 redis
     )

@@ -1,4 +1,4 @@
-export type DiarySource = 'llm' | 'template';
+export type DiarySource = 'llm' | 'template' | 'mock';
 
 export interface DiaryEntry {
   id: string;

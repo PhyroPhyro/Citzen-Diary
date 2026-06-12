@@ -40,7 +40,7 @@ function createMockCharacter(overrides = {}) {
         lastTickAt: new Date(),
         nextTickAt: new Date(),
         lastPlayerLoginAt: new Date(),
-        isNpc: false,
+        isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
         emergentSpecialization: null,
         richTickCount: 0,
         lastPrayAt: null,
@@ -52,7 +52,7 @@ function createMockCharacter(overrides = {}) {
         (0, vitest_1.it)('returns false if less than 48h inactive', () => {
             const char = createMockCharacter({
                 lastPlayerLoginAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                isNpc: false,
+                isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
             });
             (0, vitest_1.expect)((0, character_tick_1.shouldConvertToNPC)(char)).toBe(false);
         });
@@ -66,14 +66,14 @@ function createMockCharacter(overrides = {}) {
         (0, vitest_1.it)('returns true if more than 48h inactive and not NPC', () => {
             const char = createMockCharacter({
                 lastPlayerLoginAt: new Date(Date.now() - 49 * 60 * 60 * 1000),
-                isNpc: false,
+                isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
             });
             (0, vitest_1.expect)((0, character_tick_1.shouldConvertToNPC)(char)).toBe(true);
         });
         (0, vitest_1.it)('returns false if exactly 48h inactive', () => {
             const char = createMockCharacter({
                 lastPlayerLoginAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
-                isNpc: false,
+                isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
             });
             (0, vitest_1.expect)((0, character_tick_1.shouldConvertToNPC)(char)).toBe(false);
         });
@@ -93,13 +93,13 @@ function createMockCharacter(overrides = {}) {
             const char = createMockCharacter({
                 lastPlayerLoginAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
             });
-            (0, vitest_1.expect)((0, character_tick_1.calculateTickInterval)(char)).toBe(30 * 60 * 1000);
+            (0, vitest_1.expect)((0, character_tick_1.calculateTickInterval)(char, 2)).toBe(30 * 60 * 1000);
         });
         (0, vitest_1.it)('returns 5h for characters inactive 24-48h', () => {
             const char = createMockCharacter({
                 lastPlayerLoginAt: new Date(Date.now() - 30 * 60 * 60 * 1000),
             });
-            (0, vitest_1.expect)((0, character_tick_1.calculateTickInterval)(char)).toBe(5 * 60 * 60 * 1000);
+            (0, vitest_1.expect)((0, character_tick_1.calculateTickInterval)(char, 2)).toBe(5 * 60 * 60 * 1000);
         });
     });
 });

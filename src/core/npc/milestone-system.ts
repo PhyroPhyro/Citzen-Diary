@@ -112,10 +112,33 @@ export async function processMilestones(
 
   const milestones: Milestone[] = [];
   const location = getLocationById(context.locationId);
+  const existingMilestones = await db.milestones.getByCharacterId(context.character.id);
+  const activeMilestones = existingMilestones.filter((m: Milestone) => m.isActiveContext);
 
   for (const trigger of triggers) {
     const milestoneData = await generateMilestone(llm, trigger, context.character, context.locationId);
     const importance = getMilestoneImportance(trigger);
+
+    let parentMilestoneId: string | null = null;
+    let chainOrder = 0;
+
+    if (trigger === 'commitment_resolved') {
+      const relatedCommitment = activeMilestones.find((m: Milestone) => m.triggerType === 'first_commitment');
+      if (relatedCommitment) {
+        parentMilestoneId = relatedCommitment.id;
+        chainOrder = (relatedCommitment as any).chainOrder + 1;
+      }
+    }
+
+    if (trigger === 'specialization_consolidated' && context.character.emergentSpecialization) {
+      const relatedWork = activeMilestones.find((m: Milestone) =>
+        m.triggerType === 'first_exclusive_task' || m.triggerType === 'small_economic_social_achievement'
+      );
+      if (relatedWork) {
+        parentMilestoneId = relatedWork.id;
+        chainOrder = (relatedWork as any).chainOrder + 1;
+      }
+    }
 
     const milestone = await db.milestones.create({
       characterId: context.character.id,
@@ -130,6 +153,8 @@ export async function processMilestones(
       relatedEventId: null,
       diaryEntryId: null,
       isActiveContext: importance !== 'minor',
+      parentMilestoneId,
+      chainOrder,
     });
 
     milestones.push(milestone);
@@ -222,19 +247,40 @@ export async function reevaluateSpecialization(
   const topTaskRatio = topTask[1] / totalTasks;
   if (topTaskRatio < 0.3) return null;
 
-  if (character.emergentSpecialization) return null;
+  const currentSpecializations = character.specializations || [];
+  if (character.emergentSpecialization && !currentSpecializations.includes(character.emergentSpecialization)) {
+    currentSpecializations.push(character.emergentSpecialization);
+  }
 
-  const context = `Character: ${character.name}, Vocation: ${character.vocation}. Most frequent task: ${topTask[0]} (${topTask[1]} times out of ${totalTasks}). Suggest a specialization name.`;
+  const context = `Character: ${character.name}, Vocation: ${character.vocation}. Most frequent task: ${topTask[0]} (${topTask[1]} times out of ${totalTasks}). Current specializations: ${currentSpecializations.join(', ') || 'none'}. Suggest a new specialization name.`;
 
   try {
     const result = await llm.generateSpecialization(context);
     const specialization = result.specialization;
 
-    await db.character.update(character.id, { emergentSpecialization: specialization });
+    if (!currentSpecializations.includes(specialization)) {
+      currentSpecializations.push(specialization);
+    }
+
+    const maxSpecializations = 3;
+    if (currentSpecializations.length > maxSpecializations) {
+      currentSpecializations.shift();
+    }
+
+    await db.character.update(character.id, {
+      emergentSpecialization: specialization,
+      specializations: currentSpecializations,
+    });
     return specialization;
   } catch {
     const specialization = `Especialista em ${topTask[0].replace(/_/g, ' ')}`;
-    await db.character.update(character.id, { emergentSpecialization: specialization });
+    if (!currentSpecializations.includes(specialization)) {
+      currentSpecializations.push(specialization);
+    }
+    await db.character.update(character.id, {
+      emergentSpecialization: specialization,
+      specializations: currentSpecializations,
+    });
     return specialization;
   }
 }

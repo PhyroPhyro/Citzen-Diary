@@ -208,6 +208,8 @@ h3 {
 .badge-primary { background: var(--accent); color: white; }
 .badge-success { background: var(--success); color: var(--bg-primary); }
 .badge-warning { background: var(--warning); color: var(--bg-primary); }
+.badge-secondary { background: #6c757d; color: white; }
+.badge-info { background: #17a2b8; color: white; }
 
 .grid {
   display: grid;

@@ -182,19 +182,116 @@ function calculateFaithModifier(character, pendingSuggestion, task) {
         return 4;
     return 6;
 }
-function buildTaskPool(character) {
+function calculateMilestoneModifier(task, milestones, character) {
+    if (!milestones || milestones.length === 0)
+        return 0;
+    let modifier = 0;
+    for (const m of milestones) {
+        if (!m.isActiveContext)
+            continue;
+        if (m.triggerType === 'objective_achieved' && task.category === 'work')
+            modifier += 1;
+        if (m.triggerType === 'specialization_consolidated' && character?.emergentSpecialization)
+            modifier += 1;
+        if (m.triggerType === 'commitment_resolved' && task.category === 'work')
+            modifier += 1;
+        if (m.triggerType === 'world_event_impact')
+            modifier += 1;
+    }
+    return Math.min(modifier, 3);
+}
+function calculateSpecializationModifier(task, character) {
+    const specs = character.specializations || [];
+    if (character.emergentSpecialization && !specs.includes(character.emergentSpecialization)) {
+        specs.push(character.emergentSpecialization);
+    }
+    if (specs.length === 0)
+        return 0;
+    const taskNameLower = task.name.toLowerCase();
+    for (const spec of specs) {
+        const specLower = spec.toLowerCase();
+        if (taskNameLower.includes(specLower.split(' ').pop().toLowerCase()))
+            return 2;
+    }
+    return 0;
+}
+function calculateDynamicEventTasks(character, activeEvents) {
+    const dynamicTasks = [];
+    for (const event of activeEvents) {
+        if (!event.isActive)
+            continue;
+        if (event.name.toLowerCase().includes('feira') || event.name.toLowerCase().includes('mercado')) {
+            dynamicTasks.push({
+                id: `event_${event.id}_commerce`,
+                name: `Aproveitar ${event.name}`,
+                baseScore: 6,
+                primaryTrait: 'extraversion',
+                secondaryTrait: 'conscientiousness',
+                secondaryWeight: 0.5,
+                type: 'exclusive',
+                atomicActions: ['walk', 'sell', 'negotiate'],
+                category: 'commerce',
+            });
+        }
+        if (event.name.toLowerCase().includes('festival') || event.name.toLowerCase().includes('celebração')) {
+            dynamicTasks.push({
+                id: `event_${event.id}_social`,
+                name: `Participar de ${event.name}`,
+                baseScore: 5,
+                primaryTrait: 'extraversion',
+                secondaryTrait: 'openness',
+                secondaryWeight: 0.5,
+                type: 'exclusive',
+                atomicActions: ['walk', 'talk', 'announce'],
+                category: 'social',
+            });
+        }
+        if (event.name.toLowerCase().includes('conflito') || event.name.toLowerCase().includes('guerra')) {
+            if (character.vocation === 'aspirante_guarda' || character.vocation === 'guerreiro') {
+                dynamicTasks.push({
+                    id: `event_${event.id}_defense`,
+                    name: `Defender em ${event.name}`,
+                    baseScore: 7,
+                    primaryTrait: 'emotionalStability',
+                    secondaryTrait: 'conscientiousness',
+                    secondaryWeight: 0.5,
+                    type: 'exclusive',
+                    atomicActions: ['walk', 'watch', 'aggression'],
+                    category: 'work',
+                });
+            }
+        }
+        if (event.name.toLowerCase().includes('doença') || event.name.toLowerCase().includes('escassez')) {
+            dynamicTasks.push({
+                id: `event_${event.id}_aid`,
+                name: `Ajudar em ${event.name}`,
+                baseScore: 5,
+                primaryTrait: 'agreeableness',
+                secondaryTrait: 'conscientiousness',
+                secondaryWeight: 0.5,
+                type: 'exclusive',
+                atomicActions: ['walk', 'visit', 'talk'],
+                category: 'social',
+            });
+        }
+    }
+    return dynamicTasks;
+}
+function buildTaskPool(character, activeWorldEvents) {
     const vocationTasks = (0, tasks_1.getTasksByVocation)(character.vocation);
+    const vocation11Tasks = (0, tasks_1.getTasksByVocation11)(character.vocation);
     const location = (0, world_1.getLocationById)(character.locationId);
     if (!location)
-        return [...tasks_1.UNIVERSAL_TASKS, ...vocationTasks];
-    const availableTasks = [...tasks_1.UNIVERSAL_TASKS, ...vocationTasks];
+        return [...tasks_1.UNIVERSAL_TASKS, ...vocationTasks, ...vocation11Tasks];
+    const availableTasks = [...tasks_1.UNIVERSAL_TASKS, ...vocationTasks, ...vocation11Tasks];
     if (character.travelDestination) {
         return availableTasks.filter((t) => t.id === 'travel' || t.category === 'rest' || t.category === 'needs');
     }
-    return availableTasks;
+    const dynamicTasks = activeWorldEvents ? calculateDynamicEventTasks(character, activeWorldEvents) : [];
+    return [...availableTasks, ...dynamicTasks];
 }
 function scoreTasks(tasks, context) {
-    const { character, pendingSuggestion, activeCommitments, relationsInLocation } = context;
+    const { character, pendingSuggestion, activeCommitments, relationsInLocation, activeMilestones } = context;
     return tasks.map((task) => {
         const category = TASK_CATEGORY_MAP[task.id] || 'work';
         const base = task.baseScore;
@@ -208,7 +305,9 @@ function scoreTasks(tasks, context) {
         const environment = calculateEnvironmentModifier(task, character.locationId, character);
         const relation = calculateRelationModifier(task, relationsInLocation);
         const faith = calculateFaithModifier(character, pendingSuggestion, task);
-        const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith;
+        const milestone = calculateMilestoneModifier(task, activeMilestones, character);
+        const specialization = calculateSpecializationModifier(task, character);
+        const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith + milestone + specialization;
         return {
             task,
             score,
@@ -244,7 +343,7 @@ function resolveTies(scoredTasks, character) {
     });
 }
 function runDecisionMotor(character, context) {
-    const pool = buildTaskPool(character);
+    const pool = buildTaskPool(character, context.activeWorldEvents);
     const scored = scoreTasks(pool, context);
     const sorted = resolveTies(scored, character);
     return sorted.slice(0, 3);

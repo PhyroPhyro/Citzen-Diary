@@ -18,6 +18,13 @@ export const RICH_STATE_CONDITIONS: RichStateCondition[] = [
 
 export const RICH_STATE_THRESHOLD = 2;
 
+export function getNarrativeTickMultiplier(richnessScore: number): number {
+  if (richnessScore >= 6) return 0.5;
+  if (richnessScore >= 4) return 0.75;
+  if (richnessScore >= 2) return 1.0;
+  return 1.5;
+}
+
 export interface NarrativeStateResult {
   isRich: boolean;
   conditions: string[];

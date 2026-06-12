@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RICH_STATE_THRESHOLD = exports.RICH_STATE_CONDITIONS = void 0;
+exports.getNarrativeTickMultiplier = getNarrativeTickMultiplier;
 exports.classifyNarrativeState = classifyNarrativeState;
 exports.RICH_STATE_CONDITIONS = [
     { key: 'other_character_present', description: 'Outro personagem no mesmo local', weight: 2 },
@@ -14,6 +15,15 @@ exports.RICH_STATE_CONDITIONS = [
     { key: 'mood_conflict', description: 'Humor penalizava afazer mas foi executado mesmo assim', weight: 2 },
 ];
 exports.RICH_STATE_THRESHOLD = 2;
+function getNarrativeTickMultiplier(richnessScore) {
+    if (richnessScore >= 6)
+        return 0.5;
+    if (richnessScore >= 4)
+        return 0.75;
+    if (richnessScore >= 2)
+        return 1.0;
+    return 1.5;
+}
 function classifyNarrativeState(taskId, score, moodModifier, context) {
     const conditions = [];
     let richnessScore = 0;

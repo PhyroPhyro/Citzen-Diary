@@ -1,17 +1,18 @@
 import { Character, DiaryEntry, Milestone, PendingPlayerAction } from '../../models';
 import { runDecisionMotor, DecisionContext, ScoredTask } from '../decision';
-import { classifyNarrativeState, NarrativeStateResult } from '../decision/narrative-state';
+import { classifyNarrativeState, NarrativeStateResult, getNarrativeTickMultiplier } from '../decision/narrative-state';
 import { buildLLMContext } from '../../diary/llm-context';
 import { generateTemplateEntry } from '../../diary/generator';
 import { LLMProvider } from '../../llm';
 import { DBAdapter } from '../../db';
 import { QueueAdapter } from '../../queue';
-import { getTasksByVocation, UNIVERSAL_TASKS, getTaskById } from '../../data/tasks';
-import { getLocationById, getEventsByLocation } from '../../data/world';
+import { getTasksByVocation, UNIVERSAL_TASKS, getTaskById, TaskDefinition } from '../../data/tasks';
+import { getLocationById, getEventsByLocation, WorldEvent } from '../../data/world';
 import { wsServer } from '../../api/websocket';
 import { processMilestones, MilestoneCheckContext, groupTrivialEntries, reevaluateSpecialization } from '../npc/milestone-system';
 import { calculateObjectiveProgress } from '../../models/objective';
 import { decayMood } from '../../models/mood';
+import { checkDynamicEvents } from '../../world/dynamic-events';
 
 export interface TickResult {
   characterId: string;
@@ -23,7 +24,7 @@ export interface TickResult {
   characterUpdated: Partial<Character>;
 }
 
-export function calculateTickInterval(character: Character): number {
+export function calculateTickInterval(character: Character, lastRichnessScore = 0): number {
   const hoursSinceLogin = (Date.now() - character.lastPlayerLoginAt.getTime()) / (1000 * 60 * 60);
 
   let absenceInterval: number;
@@ -37,7 +38,8 @@ export function calculateTickInterval(character: Character): number {
 
   if (character.isNpc) return -1;
 
-  return absenceInterval;
+  const narrativeMultiplier = getNarrativeTickMultiplier(lastRichnessScore);
+  return Math.round(absenceInterval * narrativeMultiplier);
 }
 
 export function shouldConvertToNPC(character: Character): boolean {
@@ -52,10 +54,17 @@ export async function executeCharacterTick(
   queue: QueueAdapter,
   llm: LLMProvider
 ): Promise<TickResult | null> {
-  const interval = calculateTickInterval(character);
+  const interval = calculateTickInterval(character, 0);
   if (interval === -1) return null;
 
   const pendingSuggestion = await db.suggestions.getPending(character.id);
+  const activeMilestones = await db.milestones.getActiveContext(character.id);
+  const relations = await db.relations.getByCharacterId(character.id);
+  const activeEvents = getEventsByLocation(character.locationId);
+
+  const relationsInLocation = relations
+    .filter((r) => r.targetType === 'npc')
+    .map((r) => ({ targetId: r.targetId, affinity: r.affinityScore }));
 
   const context: DecisionContext = {
     character,
@@ -70,7 +79,9 @@ export async function executeCharacterTick(
       taskId: c.id,
       ticksRemaining: Math.ceil((new Date(c.deadline).getTime() - Date.now()) / interval),
     })),
-    relationsInLocation: [],
+    relationsInLocation,
+    activeMilestones,
+    activeWorldEvents: activeEvents,
   };
 
   const top3 = runDecisionMotor(character, context);
@@ -80,7 +91,6 @@ export async function executeCharacterTick(
   const task = chosen.task;
 
   const location = getLocationById(character.locationId);
-  const activeEvents = location ? getEventsByLocation(character.locationId) : [];
 
   const narrativeState = classifyNarrativeState(task.id, chosen.score, chosen.breakdown.mood, {
     hasOtherCharacter: false,
@@ -95,16 +105,43 @@ export async function executeCharacterTick(
 
   let diaryEntry: DiaryEntry | null = null;
   let milestone: Milestone | null = null;
+  let milestoneId: string | null = null;
+  let isAnchored = false;
+
+  const milestoneContext: MilestoneCheckContext = {
+    character,
+    taskId: task.id,
+    score: chosen.score,
+    locationId: character.locationId,
+    hasPendingSuggestion: !!pendingSuggestion,
+    wasFollowed: false,
+    isNewLocation: false,
+    hasActiveWorldEvent: activeEvents.length > 0,
+    moodState: narrativeState.isRich ? 'rico' : 'trivial',
+    commitmentResolved: chosen.breakdown.commitment >= 3,
+  };
+
+  const newMilestones = await processMilestones(milestoneContext, db, llm);
+  if (newMilestones.length > 0) {
+    const firstMilestone = newMilestones[0];
+    milestone = firstMilestone;
+    milestoneId = firstMilestone.id;
+    isAnchored = firstMilestone.importance !== 'minor';
+  }
 
   if (narrativeState.isRich) {
     const llmContext = buildLLMContext(character, chosen, narrativeState, location, activeEvents, []);
     const llmResult = await llm.generateDiaryEntry(llmContext);
 
+    const isCascade = llm.constructor.name === 'CascadeLLMProvider';
+    const activeProvider = isCascade ? (llm as any).activeProvider : llm.constructor.name;
+    const isMock = activeProvider === 'mock' || activeProvider === 'MockLLMProvider';
+
     diaryEntry = {
       id: crypto.randomUUID(),
       characterId: character.id,
       text: llmResult.diary_entry,
-      source: 'llm',
+      source: isMock ? 'mock' : 'llm',
       occurredAt: new Date(),
       createdAt: new Date(),
       locationId: character.locationId,
@@ -113,13 +150,17 @@ export async function executeCharacterTick(
       moodState: 'neutro',
       isGrouped: false,
       groupCount: null,
-      isAnchored: false,
-      milestoneId: null,
+      isAnchored,
+      milestoneId,
     };
 
     character.richTickCount = (character.richTickCount || 0) + 1;
   } else {
     diaryEntry = generateTemplateEntry(character, task);
+    if (milestoneId) {
+      diaryEntry.milestoneId = milestoneId;
+      diaryEntry.isAnchored = isAnchored;
+    }
   }
 
   if (diaryEntry) {
@@ -173,6 +214,12 @@ export async function executeCharacterTick(
   if (faithDecay > 0 && character.faith > 1) {
     const newFaith = Math.max(1, character.faith - faithDecay);
     await db.character.update(character.id, { faith: newFaith });
+    if (character.faith - newFaith >= 2) {
+      wsServer.broadcastToCharacter(character.id, {
+        type: 'faith_change',
+        data: { previousFaith: character.faith, newFaith, reason: 'absence_decay' },
+      });
+    }
     character.faith = newFaith;
   }
 
@@ -204,46 +251,94 @@ export async function executeCharacterTick(
     character.commitments = updatedCommitments;
   }
 
-  await groupTrivialEntries(character.id, db);
-  await reevaluateSpecialization(character, db, llm);
-
-  const milestoneContext: MilestoneCheckContext = {
-    character,
-    taskId: task.id,
-    score: chosen.score,
-    locationId: character.locationId,
-    hasPendingSuggestion: !!pendingSuggestion,
-    wasFollowed: false,
-    isNewLocation: false,
-    hasActiveWorldEvent: activeEvents.length > 0,
-    moodState: narrativeState.isRich ? 'rico' : 'trivial',
-    commitmentResolved: chosen.breakdown.commitment >= 3,
-  };
-
-  const newMilestones = await processMilestones(milestoneContext, db, llm);
-  if (newMilestones.length > 0) {
-    const firstMilestone = newMilestones[0];
-    milestone = firstMilestone;
-    if (diaryEntry) {
-      await db.diary.create({
-        ...diaryEntry,
-        milestoneId: firstMilestone.id,
-        isAnchored: firstMilestone.importance !== 'minor',
+  const expiredCommitments = character.commitments.filter((c) => new Date(c.deadline).getTime() < Date.now());
+  if (expiredCommitments.length > 0) {
+    const faithPenalty = expiredCommitments.length * 0.5;
+    const newFaith = Math.max(1, character.faith - faithPenalty);
+    if (newFaith !== character.faith) {
+      await db.character.update(character.id, { faith: newFaith });
+      character.faith = newFaith;
+      wsServer.broadcastToCharacter(character.id, {
+        type: 'faith_change',
+        data: { previousFaith: character.faith + faithPenalty, newFaith, reason: 'expired_commitments' },
       });
     }
+    const negativeMoods: (keyof typeof character.mood)[] = ['sadness', 'anger', 'fear'];
+    for (const moodKey of negativeMoods) {
+      character.mood[moodKey] = Math.min(10, character.mood[moodKey] + expiredCommitments.length * 0.5);
+    }
+    const validCommitments = character.commitments.filter((c) => new Date(c.deadline).getTime() >= Date.now());
+    await db.character.update(character.id, { commitments: validCommitments as any });
+    character.commitments = validCommitments;
   }
+
+  const criticalCommitments = character.commitments.filter((c) => {
+    const hoursLeft = (new Date(c.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+    return hoursLeft > 0 && hoursLeft <= 6;
+  });
+  if (criticalCommitments.length > 0) {
+    wsServer.broadcastToCharacter(character.id, {
+      type: 'critical_commitment',
+      data: {
+        commitments: criticalCommitments.map((c) => ({ id: c.id, description: c.description, deadline: c.deadline })),
+      },
+    });
+  }
+
+  const hoursSinceLastTick = character.lastTickAt
+    ? (Date.now() - new Date(character.lastTickAt).getTime()) / (1000 * 60 * 60)
+    : 0;
+  let decayedMood = hoursSinceLastTick > 0 ? decayMood(character.mood, hoursSinceLastTick) : character.mood;
+
+  if (activeEvents.length > 0) {
+    for (const event of activeEvents) {
+      if (event.name.toLowerCase().includes('conflito') || event.name.toLowerCase().includes('guerra')) {
+        decayedMood.fear = Math.min(10, decayedMood.fear + 1);
+        decayedMood.anger = Math.min(10, decayedMood.anger + 0.5);
+      }
+      if (event.name.toLowerCase().includes('festival') || event.name.toLowerCase().includes('celebração')) {
+        decayedMood.joy = Math.min(10, decayedMood.joy + 1);
+        decayedMood.surprise = Math.min(10, decayedMood.surprise + 0.5);
+      }
+      if (event.name.toLowerCase().includes('doença') || event.name.toLowerCase().includes('escassez')) {
+        decayedMood.sadness = Math.min(10, decayedMood.sadness + 1);
+        decayedMood.fear = Math.min(10, decayedMood.fear + 0.5);
+      }
+    }
+  }
+
+  if (relations.length > 0) {
+    const highAffinityRelations = relations.filter((r) => r.affinityScore >= 5);
+    if (highAffinityRelations.length > 0) {
+      decayedMood.joy = Math.min(10, decayedMood.joy + highAffinityRelations.length * 0.3);
+    }
+    const negativeRelations = relations.filter((r) => r.affinityScore <= -5);
+    if (negativeRelations.length > 0) {
+      decayedMood.anger = Math.min(10, decayedMood.anger + negativeRelations.length * 0.3);
+    }
+  }
+
+  await groupTrivialEntries(character.id, db);
+  await reevaluateSpecialization(character, db, llm);
 
   if (pendingSuggestion) {
     const wasFollowed = pendingSuggestion.action.type === 'task' && pendingSuggestion.action.taskId === task.id;
     await db.suggestions.markProcessed(pendingSuggestion.id, wasFollowed);
   }
 
-  const nextTickAt = new Date(Date.now() + interval);
+  const dynamicEvents = checkDynamicEvents(character, task as TaskDefinition);
+  if (dynamicEvents.length > 0) {
+    wsServer.broadcastToCharacter(character.id, {
+      type: 'world_event',
+      data: {
+        events: dynamicEvents.map((e) => ({ id: e.id, name: e.name, description: e.description })),
+      },
+    });
+  }
 
-  const hoursSinceLastTick = character.lastTickAt
-    ? (Date.now() - new Date(character.lastTickAt).getTime()) / (1000 * 60 * 60)
-    : 0;
-  const decayedMood = hoursSinceLastTick > 0 ? decayMood(character.mood, hoursSinceLastTick) : character.mood;
+  const narrativeMultiplier = getNarrativeTickMultiplier(narrativeState.richnessScore);
+  const adjustedInterval = Math.round(interval * narrativeMultiplier);
+  const nextTickAt = new Date(Date.now() + adjustedInterval);
 
   const characterUpdated: Partial<Character> = {
     lastTickAt: new Date(),

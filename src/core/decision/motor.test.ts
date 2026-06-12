@@ -41,7 +41,7 @@ function createTestCharacter(overrides: Partial<Character> = {}): Character {
     lastTickAt: new Date(),
     nextTickAt: new Date(),
     lastPlayerLoginAt: new Date(),
-    isNpc: false,
+    isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
     emergentSpecialization: null,
     richTickCount: 0,
     lastPrayAt: null,

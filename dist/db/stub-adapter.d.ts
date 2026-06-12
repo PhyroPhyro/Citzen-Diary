@@ -11,13 +11,13 @@ export declare class StubDBAdapter implements DBAdapter {
         updateObjectiveProgress(): Promise<void>;
     };
     diary: {
-        getByCharacterId(): Promise<any[]>;
+        getByCharacterId(_characterId: string): Promise<any[]>;
         create(): Promise<any>;
         getAnchored(): Promise<any[]>;
         enforceLimit(): Promise<void>;
     };
     milestones: {
-        getByCharacterId(): Promise<any[]>;
+        getByCharacterId(_characterId: string): Promise<any[]>;
         create(): Promise<any>;
         getActiveContext(): Promise<any[]>;
     };
@@ -28,14 +28,14 @@ export declare class StubDBAdapter implements DBAdapter {
         getAll(): Promise<any[]>;
     };
     relations: {
-        getByCharacterId(): Promise<any[]>;
+        getByCharacterId(_characterId: string): Promise<any[]>;
         create(): Promise<any>;
         update(): Promise<any>;
         getByTarget(): Promise<null>;
     };
     suggestions: {
         getPending(): Promise<null>;
-        getByCharacterId(): Promise<any[]>;
+        getByCharacterId(_characterId: string): Promise<any[]>;
         create(): Promise<any>;
         markProcessed(): Promise<void>;
         replacePending(): Promise<any>;

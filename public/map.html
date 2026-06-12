@@ -5,6 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mapa — Citizen Diary</title>
   <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .map-visual {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      white-space: pre;
+      overflow-x: auto;
+      color: var(--text-secondary);
+    }
+    .map-visual .region { color: var(--accent); font-weight: bold; }
+    .map-visual .location { color: var(--text-primary); }
+    .map-visual .connection { color: var(--border); }
+    .map-visual .event { color: #e94560; }
+    .region-selector { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .region-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .region-btn:hover, .region-btn.active {
+      background: var(--accent);
+      color: var(--bg-primary);
+      border-color: var(--accent);
+    }
+    .location-detail { display: none; }
+    .location-detail.active { display: block; }
+    .travel-path {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background: var(--bg-primary);
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -37,78 +81,138 @@
 
   <script>
     const API = '';
-
     const regionColors = {
       planicies_arvel: '#4ecca3',
       costa_maren: '#45b7d1',
       serra_duren: '#96c93d',
-      floresta_elden: '#6c5ce7',
-      korrath: '#e94560',
+      vale_rio_maren: '#a29bfe',
+      territorio_korrath: '#e94560',
     };
+
+    let allData = null;
+    let allEvents = null;
 
     async function loadMap() {
       try {
         const res = await fetch(`${API}/world/map`);
-        const data = await res.json();
-
+        allData = await res.json();
         const eventsRes = await fetch(`${API}/world/events`);
-        const eventsData = await eventsRes.json();
+        allEvents = await eventsRes.json();
 
-        let html = `
-          <div class="card">
-            <h2>Mapa do Mundo</h2>
-            <p style="font-size: 0.85rem; color: var(--text-secondary);">${data.regions.length} regiões, ${data.locations.length} localidades</p>
-          </div>
-        `;
-
-        for (const region of data.regions) {
-          const regionLocations = data.locations.filter(l => l.regionId === region.id);
-          const regionEvents = eventsData.events.filter(e => e.regionId === region.id);
-
-          html += `
-            <div class="card" style="border-left: 4px solid ${regionColors[region.id] || 'var(--accent)'};">
-              <h3 style="color: ${regionColors[region.id] || 'var(--accent)'};">${region.name}</h3>
-              <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Clima:</strong> ${region.climate}</p>
-              <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Cultura:</strong> ${region.culture}</p>
-              <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Poder Dominante:</strong> ${region.dominantPower}</p>
-              <p style="font-size: 0.85rem; font-style: italic; color: var(--text-secondary); margin-bottom: 1rem;">${region.narrativeTone}</p>
-
-              ${regionEvents.length > 0 ? `
-                <div style="margin-bottom: 1rem;">
-                  <strong style="font-size: 0.85rem;">⚡ Eventos Ativos:</strong>
-                  ${regionEvents.map(e => `
-                    <div style="margin-left: 1rem; margin-top: 0.3rem; font-size: 0.85rem;">
-                      <strong>${e.name}</strong> — ${e.description}
-                    </div>
-                  `).join('')}
-                </div>
-              ` : ''}
-
-              <h3 style="font-size: 0.95rem; margin-top: 0.5rem;">Localidades (${regionLocations.length})</h3>
-              <div class="grid grid-2">
-                ${regionLocations.map(loc => `
-                  <div class="location-card card">
-                    <h4>${loc.name}</h4>
-                    <p>${loc.description}</p>
-                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">
-                      População: ${loc.population} · Tipo: ${loc.type}
-                    </p>
-                    ${loc.connections && loc.connections.length > 0 ? `
-                      <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">
-                        Conexões: ${loc.connections.map(c => c.locationId).join(', ')}
-                      </p>
-                    ` : ''}
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `;
-        }
-
-        document.getElementById('content').innerHTML = html;
+        renderMapOverview();
       } catch {
         document.getElementById('content').innerHTML = '<p class="error">Erro ao carregar mapa.</p>';
       }
+    }
+
+    function renderMapOverview() {
+      let html = `
+        <div class="card">
+          <h2>Mapa de Auren</h2>
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">${allData.regions.length} regiões, ${allData.locations.length} localidades</p>
+        </div>
+        <div class="region-selector">
+          ${allData.regions.map(r => `
+            <button class="region-btn" onclick="showRegion('${r.id}')" style="border-left: 3px solid ${regionColors[r.id] || 'var(--accent)'}">
+              ${r.name}
+            </button>
+          `).join('')}
+        </div>
+      `;
+
+      for (const region of allData.regions) {
+        const regionLocations = allData.locations.filter(l => l.regionId === region.id);
+        const regionEvents = allEvents.events.filter(e => e.regionId === region.id);
+
+        html += `
+          <div id="region-${region.id}" class="location-detail card" style="border-left: 4px solid ${regionColors[region.id] || 'var(--accent)'};">
+            <h3 style="color: ${regionColors[region.id] || 'var(--accent)'};">${region.name}</h3>
+            <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Clima:</strong> ${region.climate}</p>
+            <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Cultura:</strong> ${region.culture}</p>
+            <p style="font-size: 0.85rem; margin-bottom: 0.5rem;"><strong>Poder Dominante:</strong> ${region.dominantPower}</p>
+            <p style="font-size: 0.85rem; font-style: italic; color: var(--text-secondary); margin-bottom: 1rem;">${region.narrativeTone}</p>
+
+            ${regionEvents.length > 0 ? `
+              <div style="margin-bottom: 1rem;">
+                <strong style="font-size: 0.85rem;">⚡ Eventos Ativos:</strong>
+                ${regionEvents.map(e => `
+                  <div style="margin-left: 1rem; margin-top: 0.3rem; font-size: 0.85rem; color: #e94560;">
+                    <strong>${e.name}</strong> — ${e.description}
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <h3 style="font-size: 0.95rem; margin-top: 0.5rem;">Localidades (${regionLocations.length})</h3>
+            <div class="grid grid-2">
+              ${regionLocations.map(loc => {
+                const connections = loc.connections || [];
+                return `
+                  <div class="location-card card" onclick="showLocationDetail('${loc.id}')" style="cursor: pointer;">
+                    <h4>${loc.name}</h4>
+                    <p style="font-size: 0.8rem;">${loc.description.substring(0, 100)}...</p>
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">
+                      Pop: ${loc.population} · Tipo: ${loc.type}
+                    </p>
+                    ${connections.length > 0 ? `
+                      <div class="travel-path">
+                        Rotas: ${connections.map(c => {
+                          const target = allData.locations.find(l => l.id === c.locationId);
+                          return `${target ? target.name : c.locationId} (${c.travelDays}d)`;
+                        }).join(' → ')}
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById('content').innerHTML = html;
+    }
+
+    function showRegion(regionId) {
+      document.querySelectorAll('.location-detail').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.region-btn').forEach(btn => btn.classList.remove('active'));
+      const regionEl = document.getElementById(`region-${regionId}`);
+      if (regionEl) regionEl.classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function showLocationDetail(locId) {
+      const loc = allData.locations.find(l => l.id === locId);
+      if (!loc) return;
+      const region = allData.regions.find(r => r.id === loc.regionId);
+      const events = allEvents.events.filter(e => e.locationIds.includes(locId));
+
+      let html = `
+        <div class="card" style="margin-top: 1rem;">
+          <button onclick="renderMapOverview(); showRegion('${region.id}')" style="background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.85rem;">
+            ← Voltar para ${region.name}
+          </button>
+          <h2 style="margin-top: 0.5rem;">${loc.name}</h2>
+          <p><strong>Região:</strong> ${region.name}</p>
+          <p><strong>Tipo:</strong> ${loc.type}</p>
+          <p><strong>População:</strong> ${loc.population}</p>
+          <p style="margin-top: 0.5rem;">${loc.description}</p>
+          ${events.length > 0 ? `
+            <div style="margin-top: 1rem;">
+              <strong>⚡ Eventos Ativos:</strong>
+              ${events.map(e => `<p style="color: #e94560; margin-left: 1rem;">${e.name} — ${e.description}</p>`).join('')}
+            </div>
+          ` : ''}
+          <div style="margin-top: 1rem;">
+            <strong>Rotas de Viagem:</strong>
+            ${(loc.connections || []).map(c => {
+              const target = allData.locations.find(l => l.id === c.locationId);
+              return `<p style="margin-left: 1rem;">→ ${target ? target.name : c.locationId} (${c.travelDays} dias)</p>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+      document.getElementById('content').innerHTML = html;
     }
 
     loadMap();

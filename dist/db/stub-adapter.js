@@ -17,13 +17,13 @@ class StubDBAdapter {
         async updateObjectiveProgress() { },
     };
     diary = {
-        async getByCharacterId() { return []; },
+        async getByCharacterId(_characterId) { return []; },
         async create() { return {}; },
         async getAnchored() { return []; },
         async enforceLimit() { },
     };
     milestones = {
-        async getByCharacterId() { return []; },
+        async getByCharacterId(_characterId) { return []; },
         async create() { return {}; },
         async getActiveContext() { return []; },
     };
@@ -34,14 +34,14 @@ class StubDBAdapter {
         async getAll() { return []; },
     };
     relations = {
-        async getByCharacterId() { return []; },
+        async getByCharacterId(_characterId) { return []; },
         async create() { return {}; },
         async update() { return {}; },
         async getByTarget() { return null; },
     };
     suggestions = {
         async getPending() { return null; },
-        async getByCharacterId() { return []; },
+        async getByCharacterId(_characterId) { return []; },
         async create() { return {}; },
         async markProcessed() { },
         async replacePending() { return {}; },

@@ -40,7 +40,7 @@ function createMockCharacter(overrides: Partial<Character> = {}): Character {
     lastTickAt: new Date(),
     nextTickAt: new Date(),
     lastPlayerLoginAt: new Date(),
-    isNpc: false,
+    isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
     emergentSpecialization: null,
     richTickCount: 0,
     lastPrayAt: null,
@@ -53,7 +53,7 @@ describe('Character Tick - NPC Conversion', () => {
     it('returns false if less than 48h inactive', () => {
       const char = createMockCharacter({
         lastPlayerLoginAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        isNpc: false,
+        isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
       });
       expect(shouldConvertToNPC(char)).toBe(false);
     });
@@ -69,7 +69,7 @@ describe('Character Tick - NPC Conversion', () => {
     it('returns true if more than 48h inactive and not NPC', () => {
       const char = createMockCharacter({
         lastPlayerLoginAt: new Date(Date.now() - 49 * 60 * 60 * 1000),
-        isNpc: false,
+        isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
       });
       expect(shouldConvertToNPC(char)).toBe(true);
     });
@@ -77,7 +77,7 @@ describe('Character Tick - NPC Conversion', () => {
     it('returns false if exactly 48h inactive', () => {
       const char = createMockCharacter({
         lastPlayerLoginAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
-        isNpc: false,
+        isNpc: false, specializations: [], visitedLocations: [], traitHistory: [], previousVocation: null,
       });
       expect(shouldConvertToNPC(char)).toBe(false);
     });
@@ -100,14 +100,14 @@ describe('Character Tick - NPC Conversion', () => {
       const char = createMockCharacter({
         lastPlayerLoginAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
       });
-      expect(calculateTickInterval(char)).toBe(30 * 60 * 1000);
+      expect(calculateTickInterval(char, 2)).toBe(30 * 60 * 1000);
     });
 
     it('returns 5h for characters inactive 24-48h', () => {
       const char = createMockCharacter({
         lastPlayerLoginAt: new Date(Date.now() - 30 * 60 * 60 * 1000),
       });
-      expect(calculateTickInterval(char)).toBe(5 * 60 * 60 * 1000);
+      expect(calculateTickInterval(char, 2)).toBe(5 * 60 * 60 * 1000);
     });
   });
 });

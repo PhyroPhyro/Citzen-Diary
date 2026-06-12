@@ -432,8 +432,12 @@ class PostgreSQLAdapter {
             lastPlayerLoginAt: new Date(row.last_player_login_at),
             isNpc: row.is_npc,
             emergentSpecialization: row.emergent_specialization,
+            specializations: typeof row.specializations === 'string' ? JSON.parse(row.specializations) : (row.specializations || []),
             richTickCount: Number(row.rich_tick_count),
             lastPrayAt: row.last_pray_at ? new Date(row.last_pray_at) : null,
+            visitedLocations: typeof row.visited_locations === 'string' ? JSON.parse(row.visited_locations) : (row.visited_locations || []),
+            traitHistory: typeof row.trait_history === 'string' ? JSON.parse(row.trait_history) : (row.trait_history || []),
+            previousVocation: row.previous_vocation || null,
         };
     }
     mapRowToDiaryEntry(row) {
@@ -469,6 +473,8 @@ class PostgreSQLAdapter {
             relatedEventId: row.related_event_id,
             diaryEntryId: row.diary_entry_id,
             isActiveContext: row.is_active_context,
+            parentMilestoneId: row.parent_milestone_id || null,
+            chainOrder: Number(row.chain_order || 0),
         };
     }
     mapRowToNPC(row) {

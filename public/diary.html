@@ -126,9 +126,9 @@
           <div class="date">${new Date(entry.occurredAt).toLocaleString('pt-BR')}</div>
           <div class="text">${entry.text}</div>
           <div class="meta">
-            ${entry.source === 'llm' ? '<span class="badge badge-primary">LLM</span>' : '<span class="badge badge-success">Template</span>'}
+            ${entry.source === 'llm' ? '<span class="badge badge-primary">LLM</span>' : entry.source === 'mock' ? '<span class="badge badge-secondary">Mock</span>' : '<span class="badge badge-success">Template</span>'}
             ${entry.isGrouped ? `<span class="badge badge-warning">×${entry.groupCount || 1}</span>` : ''}
-            ${entry.isAnchored ? '<span class="badge badge-success">Ancorada</span>' : ''}
+            ${entry.isAnchored ? '<span class="badge badge-info" title="Vinculada a um Marco — não será descartada">📌 Marco</span>' : ''}
             ${entry.locationName ? ` · ${entry.locationName}` : ''}
           </div>
         </div>
@@ -187,6 +187,7 @@
               <select id="filterSource" onchange="applyFilters()">
                 <option value="">Todos os tipos</option>
                 <option value="llm" ${currentFilters.source === 'llm' ? 'selected' : ''}>LLM</option>
+                <option value="mock" ${currentFilters.source === 'mock' ? 'selected' : ''}>Mock</option>
                 <option value="template" ${currentFilters.source === 'template' ? 'selected' : ''}>Template</option>
                 <option value="grouped" ${currentFilters.source === 'grouped' ? 'selected' : ''}>Agrupadas</option>
               </select>
@@ -201,9 +202,9 @@
                 <div class="date">${new Date(e.occurredAt).toLocaleString('pt-BR')}</div>
                 <div class="text">${e.text}</div>
                 <div class="meta">
-                  ${e.source === 'llm' ? '<span class="badge badge-primary">LLM</span>' : '<span class="badge badge-success">Template</span>'}
+                  ${e.source === 'llm' ? '<span class="badge badge-primary">LLM</span>' : e.source === 'mock' ? '<span class="badge badge-secondary">Mock</span>' : '<span class="badge badge-success">Template</span>'}
                   ${e.isGrouped ? `<span class="badge badge-warning">×${e.groupCount}</span>` : ''}
-                  ${e.isAnchored ? '<span class="badge badge-success">Ancorada</span>' : ''}
+                  ${e.isAnchored ? '<span class="badge badge-info" title="Vinculada a um Marco — não será descartada">📌 Marco</span>' : ''}
                   ${e.locationName ? ` · ${e.locationName}` : ''}
                   ${e.moodState ? ` · ${e.moodState}` : ''}
                 </div>

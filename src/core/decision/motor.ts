@@ -1,10 +1,10 @@
-import { Character, TraitName } from '../../models';
+import { Character, TraitName, Milestone } from '../../models';
 import { traitToModifier } from '../../models/traits';
 import { getMoodModifier, getDominantMood } from '../../models/mood';
 import { getCommitmentModifier } from '../../models/objective';
 import { affinityToModifier } from '../../models/relation';
-import { getTasksByVocation, UNIVERSAL_TASKS, TaskDefinition as TaskDef } from '../../data/tasks';
-import { getEventsByLocation, getLocationById } from '../../data/world';
+import { getTasksByVocation, UNIVERSAL_TASKS, TaskDefinition as TaskDef, getTasksByVocation11 } from '../../data/tasks';
+import { getEventsByLocation, getLocationById, WorldEvent } from '../../data/world';
 
 export interface ScoredTask {
   task: TaskDef;
@@ -31,6 +31,8 @@ export interface DecisionContext {
   };
   activeCommitments?: { taskId: string; ticksRemaining: number }[];
   relationsInLocation?: { targetId: string; affinity: number }[];
+  activeMilestones?: Milestone[];
+  activeWorldEvents?: WorldEvent[];
 }
 
 const MOOD_CATEGORY_MAP: Record<string, { favored: string[]; penalized: string[] }> = {
@@ -204,13 +206,103 @@ function calculateFaithModifier(character: Character, pendingSuggestion?: { type
   return 6;
 }
 
-export function buildTaskPool(character: Character): TaskDef[] {
+function calculateMilestoneModifier(task: TaskDef, milestones?: Milestone[], character?: Character): number {
+  if (!milestones || milestones.length === 0) return 0;
+  let modifier = 0;
+  for (const m of milestones) {
+    if (!m.isActiveContext) continue;
+    if (m.triggerType === 'objective_achieved' && task.category === 'work') modifier += 1;
+    if (m.triggerType === 'specialization_consolidated' && character?.emergentSpecialization) modifier += 1;
+    if (m.triggerType === 'commitment_resolved' && task.category === 'work') modifier += 1;
+    if (m.triggerType === 'world_event_impact') modifier += 1;
+  }
+  return Math.min(modifier, 3);
+}
+
+function calculateSpecializationModifier(task: TaskDef, character: Character): number {
+  const specs = character.specializations || [];
+  if (character.emergentSpecialization && !specs.includes(character.emergentSpecialization)) {
+    specs.push(character.emergentSpecialization);
+  }
+  if (specs.length === 0) return 0;
+  const taskNameLower = task.name.toLowerCase();
+  for (const spec of specs) {
+    const specLower = spec.toLowerCase();
+    if (taskNameLower.includes(specLower.split(' ').pop()!.toLowerCase())) return 2;
+  }
+  return 0;
+}
+
+function calculateDynamicEventTasks(character: Character, activeEvents: WorldEvent[]): TaskDef[] {
+  const dynamicTasks: TaskDef[] = [];
+  for (const event of activeEvents) {
+    if (!event.isActive) continue;
+    if (event.name.toLowerCase().includes('feira') || event.name.toLowerCase().includes('mercado')) {
+      dynamicTasks.push({
+        id: `event_${event.id}_commerce`,
+        name: `Aproveitar ${event.name}`,
+        baseScore: 6,
+        primaryTrait: 'extraversion',
+        secondaryTrait: 'conscientiousness',
+        secondaryWeight: 0.5,
+        type: 'exclusive',
+        atomicActions: ['walk', 'sell', 'negotiate'],
+        category: 'commerce',
+      });
+    }
+    if (event.name.toLowerCase().includes('festival') || event.name.toLowerCase().includes('celebração')) {
+      dynamicTasks.push({
+        id: `event_${event.id}_social`,
+        name: `Participar de ${event.name}`,
+        baseScore: 5,
+        primaryTrait: 'extraversion',
+        secondaryTrait: 'openness',
+        secondaryWeight: 0.5,
+        type: 'exclusive',
+        atomicActions: ['walk', 'talk', 'announce'],
+        category: 'social',
+      });
+    }
+    if (event.name.toLowerCase().includes('conflito') || event.name.toLowerCase().includes('guerra')) {
+      if (character.vocation === 'aspirante_guarda' || character.vocation === 'guerreiro') {
+        dynamicTasks.push({
+          id: `event_${event.id}_defense`,
+          name: `Defender em ${event.name}`,
+          baseScore: 7,
+          primaryTrait: 'emotionalStability',
+          secondaryTrait: 'conscientiousness',
+          secondaryWeight: 0.5,
+          type: 'exclusive',
+          atomicActions: ['walk', 'watch', 'aggression'],
+          category: 'work',
+        });
+      }
+    }
+    if (event.name.toLowerCase().includes('doença') || event.name.toLowerCase().includes('escassez')) {
+      dynamicTasks.push({
+        id: `event_${event.id}_aid`,
+        name: `Ajudar em ${event.name}`,
+        baseScore: 5,
+        primaryTrait: 'agreeableness',
+        secondaryTrait: 'conscientiousness',
+        secondaryWeight: 0.5,
+        type: 'exclusive',
+        atomicActions: ['walk', 'visit', 'talk'],
+        category: 'social',
+      });
+    }
+  }
+  return dynamicTasks;
+}
+
+export function buildTaskPool(character: Character, activeWorldEvents?: WorldEvent[]): TaskDef[] {
   const vocationTasks = getTasksByVocation(character.vocation);
+  const vocation11Tasks = getTasksByVocation11(character.vocation);
   const location = getLocationById(character.locationId);
 
-  if (!location) return [...UNIVERSAL_TASKS, ...vocationTasks];
+  if (!location) return [...UNIVERSAL_TASKS, ...vocationTasks, ...vocation11Tasks];
 
-  const availableTasks = [...UNIVERSAL_TASKS, ...vocationTasks];
+  const availableTasks = [...UNIVERSAL_TASKS, ...vocationTasks, ...vocation11Tasks];
 
   if (character.travelDestination) {
     return availableTasks.filter((t) =>
@@ -218,14 +310,15 @@ export function buildTaskPool(character: Character): TaskDef[] {
     );
   }
 
-  return availableTasks;
+  const dynamicTasks = activeWorldEvents ? calculateDynamicEventTasks(character, activeWorldEvents) : [];
+  return [...availableTasks, ...dynamicTasks];
 }
 
 export function scoreTasks(
   tasks: TaskDef[],
   context: DecisionContext
 ): ScoredTask[] {
-  const { character, pendingSuggestion, activeCommitments, relationsInLocation } = context;
+  const { character, pendingSuggestion, activeCommitments, relationsInLocation, activeMilestones } = context;
 
   return tasks.map((task) => {
     const category = TASK_CATEGORY_MAP[task.id] || 'work';
@@ -241,8 +334,10 @@ export function scoreTasks(
     const environment = calculateEnvironmentModifier(task, character.locationId, character);
     const relation = calculateRelationModifier(task, relationsInLocation);
     const faith = calculateFaithModifier(character, pendingSuggestion, task);
+    const milestone = calculateMilestoneModifier(task, activeMilestones, character);
+    const specialization = calculateSpecializationModifier(task, character);
 
-    const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith;
+    const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith + milestone + specialization;
 
     return {
       task,
@@ -282,7 +377,7 @@ export function resolveTies(scoredTasks: ScoredTask[], character: Character): Sc
 }
 
 export function runDecisionMotor(character: Character, context: DecisionContext): ScoredTask[] {
-  const pool = buildTaskPool(character);
+  const pool = buildTaskPool(character, context.activeWorldEvents);
   const scored = scoreTasks(pool, context);
   const sorted = resolveTies(scored, character);
   return sorted.slice(0, 3);

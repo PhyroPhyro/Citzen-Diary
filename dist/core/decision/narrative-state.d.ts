@@ -5,6 +5,7 @@ export interface RichStateCondition {
 }
 export declare const RICH_STATE_CONDITIONS: RichStateCondition[];
 export declare const RICH_STATE_THRESHOLD = 2;
+export declare function getNarrativeTickMultiplier(richnessScore: number): number;
 export interface NarrativeStateResult {
     isRich: boolean;
     conditions: string[];

@@ -29,7 +29,7 @@ export function createRoutes(deps: AppDeps): Router {
     name: z.string().min(1).max(100),
     description: z.string().min(1).max(500),
     playerId: z.string().min(1).max(100),
-    vocation: z.enum(['lavrador', 'andarilho', 'aprendiz_artesao', 'aspirante_guarda', 'comerciante_ambulante']),
+    vocation: z.enum(['lavrador', 'andarilho', 'aprendiz_artesao', 'aspirante_guarda', 'comerciante_ambulante', 'clerigo', 'trovador', 'guerreiro', 'escriba', 'vorant']),
     answers: z.array(z.object({
       questionId: z.number(),
       optionLetter: z.string().length(1),
@@ -337,14 +337,20 @@ export function createRoutes(deps: AppDeps): Router {
       }
 
       const location = getLocationById(character.locationId);
-      const newFaith = Math.min(10, character.faith + 1);
+      const faithGain = character.faith >= 8 ? 2 : 1;
+      const newFaith = Math.min(10, character.faith + faithGain);
+
       const negativeMoods: (keyof typeof character.mood)[] = ['sadness', 'anger', 'fear', 'disgust'];
-      const highestNegative = negativeMoods.reduce((max, key) =>
-        character.mood[key] > character.mood[max] ? key : max
-      , 'sadness');
+      const moodReduction = character.faith >= 8 ? 2 : 1;
       const newMood = { ...character.mood };
-      if (character.mood[highestNegative] > 0) {
-        newMood[highestNegative] = Math.max(0, character.mood[highestNegative] - 1);
+      for (const key of negativeMoods) {
+        if (character.mood[key] > 0) {
+          newMood[key] = Math.max(0, character.mood[key] - moodReduction);
+        }
+      }
+
+      if (character.faith >= 9) {
+        newMood.joy = Math.min(10, newMood.joy + 1);
       }
 
       const updated = await db.character.update(characterId, {
@@ -355,14 +361,16 @@ export function createRoutes(deps: AppDeps): Router {
 
       const prayDiaryEntry = await db.diary.create({
         characterId,
-        text: `Rezei. Senti uma presença familiar me ouvindo. Minha fé se fortaleceu.`,
+        text: character.faith >= 8
+          ? `Rezei com fervor. A presença divina foi intensa, como um abraço quente. Minha fé se fortaleceu profundamente.`
+          : `Rezei. Senti uma presença familiar me ouvindo. Minha fé se fortaleceu.`,
         source: 'template',
         occurredAt: new Date(),
         createdAt: new Date(),
         locationId: character.locationId,
         locationName: location?.name || 'Desconhecido',
         taskId: 'pray',
-        moodState: 'animado',
+        moodState: character.faith >= 8 ? 'animado' : 'neutro',
         isGrouped: false,
         groupCount: null,
         isAnchored: false,
@@ -387,7 +395,8 @@ export function createRoutes(deps: AppDeps): Router {
         characterId,
         faith: updated.faith,
         previousFaith: character.faith,
-        moodReduced: highestNegative,
+        faithGain,
+        moodReduced: negativeMoods.filter((k) => newMood[k] < character.mood[k]),
         diaryEntry: prayDiaryEntry,
       });
     } catch (error) {
@@ -554,6 +563,11 @@ export function createRoutes(deps: AppDeps): Router {
         aprendiz_artesao: 'artisanal',
         aspirante_guarda: 'military',
         comerciante_ambulante: 'economic',
+        clerigo: 'spiritual',
+        trovador: 'social',
+        guerreiro: 'military',
+        escriba: 'artisanal',
+        vorant: 'spiritual',
       };
       const objectiveType = objectiveTypeMap[vocation] || 'economic';
 
@@ -759,6 +773,16 @@ export function createRoutes(deps: AppDeps): Router {
         }
       }
 
+      let queueStats = null;
+      try {
+        const bullmq = queue as any;
+        if (bullmq.getQueueStats) {
+          queueStats = await bullmq.getQueueStats();
+        }
+      } catch {
+        // Queue stats not available
+      }
+
       res.json({
         provider,
         llmType,
@@ -768,6 +792,7 @@ export function createRoutes(deps: AppDeps): Router {
         isMock,
         gemini: geminiStatus,
         cerebras: cerebrasStatus,
+        queue: queueStats,
       });
     } catch (error) {
       console.error('[API] Error checking quota:', error);
@@ -858,6 +883,186 @@ export function createRoutes(deps: AppDeps): Router {
       res.json(exportData);
     } catch (error) {
       console.error('[API] Error exporting diary:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/character/:id/evolve-traits', async (req: Request, res: Response) => {
+    try {
+      const characterId = getParamId(req);
+      const character = await db.character.getById(characterId);
+      if (!character) {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+
+      const entries = await db.diary.getByCharacterId(characterId, 200);
+      const taskCounts: Record<string, number> = {};
+      for (const entry of entries) {
+        if (entry.taskId) {
+          taskCounts[entry.taskId] = (taskCounts[entry.taskId] || 0) + 1;
+        }
+      }
+
+      const totalTasks = Object.values(taskCounts).reduce((sum, count) => sum + count, 0);
+      if (totalTasks < 50) {
+        return res.json({ message: 'Not enough activity for trait evolution', totalTasks });
+      }
+
+      const traitChanges: Record<string, number> = {};
+      const socialRatio = (taskCounts['visit_known'] || 0 + taskCounts['tavern'] || 0) / totalTasks;
+      if (socialRatio > 0.3) traitChanges['extraversion'] = 1;
+
+      const workRatio = (taskCounts['cultivate'] || 0 + taskCounts['forge_item'] || 0 + taskCounts['patrol'] || 0) / totalTasks;
+      if (workRatio > 0.4) traitChanges['conscientiousness'] = 1;
+
+      const explorationRatio = (taskCounts['explore_route'] || 0 + taskCounts['observe_surroundings'] || 0) / totalTasks;
+      if (explorationRatio > 0.2) traitChanges['openness'] = 1;
+
+      if (Object.keys(traitChanges).length === 0) {
+        return res.json({ message: 'No trait evolution triggered', taskCounts, totalTasks });
+      }
+
+      const history = character.traitHistory || [];
+      for (const [trait, delta] of Object.entries(traitChanges)) {
+        const key = trait as keyof typeof character.traits;
+        const oldValue = character.traits[key];
+        const newValue = Math.min(10, Math.max(0, oldValue + delta));
+        character.traits[key] = newValue;
+        history.push({ trait, oldValue, newValue, changedAt: new Date() });
+      }
+
+      await db.character.update(characterId, {
+        traits: character.traits,
+        traitHistory: history as any,
+      });
+
+      res.json({
+        message: 'Traits evolved',
+        changes: traitChanges,
+        newTraits: character.traits,
+        history: history.slice(-5),
+      });
+    } catch (error) {
+      console.error('[API] Error evolving traits:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/character/:id/change-vocation', async (req: Request, res: Response) => {
+    try {
+      const characterId = getParamId(req);
+      const character = await db.character.getById(characterId);
+      if (!character) {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+
+      const entries = await db.diary.getByCharacterId(characterId, 200);
+      const taskCounts: Record<string, number> = {};
+      for (const entry of entries) {
+        if (entry.taskId) {
+          taskCounts[entry.taskId] = (taskCounts[entry.taskId] || 0) + 1;
+        }
+      }
+
+      const totalTasks = Object.values(taskCounts).reduce((sum, count) => sum + count, 0);
+      if (totalTasks < 50) {
+        return res.json({ message: 'Not enough activity for vocation change', totalTasks });
+      }
+
+      const vocationTaskMap: Record<string, { tasks: string[]; minRatio: number }> = {
+        clerigo: { tasks: ['bless_faithful', 'hear_confession', 'tend_sick', 'preach_sermon'], minRatio: 0.2 },
+        trovador: { tasks: ['perform_tavern', 'compose_ballad', 'spread_news', 'gather_rumors'], minRatio: 0.2 },
+        guerreiro: { tasks: ['spar_training', 'hunt_game', 'maintain_weapon', 'join_skirmish'], minRatio: 0.2 },
+        escriba: { tasks: ['copy_document', 'write_letter', 'catalog_archive', 'translate_text'], minRatio: 0.2 },
+        vorant: { tasks: ['meditate_vora', 'channel_element', 'heal_wound', 'study_lore'], minRatio: 0.2 },
+        lavrador: { tasks: ['cultivate', 'harvest_production', 'care_animals'], minRatio: 0.2 },
+        andarilho: { tasks: ['deliver_message', 'explore_route', 'guide_traveler'], minRatio: 0.2 },
+        aprendiz_artesao: { tasks: ['forge_item', 'repair_item', 'practice_technique'], minRatio: 0.2 },
+        aspirante_guarda: { tasks: ['patrol', 'train_combat', 'arrest_suspect'], minRatio: 0.2 },
+        comerciante_ambulante: { tasks: ['buy_goods', 'sell_goods', 'speculate_prices'], minRatio: 0.2 },
+      };
+
+      let bestVocation: string | null = null;
+      let bestRatio = 0;
+
+      for (const [vocation, config] of Object.entries(vocationTaskMap)) {
+        if (vocation === character.vocation) continue;
+        const matchingTasks = config.tasks.reduce((sum, t) => sum + (taskCounts[t] || 0), 0);
+        const ratio = matchingTasks / totalTasks;
+        if (ratio >= config.minRatio && ratio > bestRatio) {
+          bestRatio = ratio;
+          bestVocation = vocation;
+        }
+      }
+
+      if (!bestVocation) {
+        return res.json({ message: 'No vocation change detected', currentVocation: character.vocation });
+      }
+
+      const previousVocation = character.vocation;
+      await db.character.update(characterId, {
+        vocation: bestVocation,
+        previousVocation,
+      });
+
+      wsServer.broadcastToCharacter(characterId, {
+        type: 'vocation_change',
+        data: {
+          previousVocation,
+          newVocation: bestVocation,
+          triggerRatio: bestRatio,
+        },
+      });
+
+      res.json({
+        message: 'Vocation changed',
+        previousVocation,
+        newVocation: bestVocation,
+        triggerRatio: bestRatio,
+      });
+    } catch (error) {
+      console.error('[API] Error changing vocation:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  router.post('/character/:id/resurrect', async (req: Request, res: Response) => {
+    try {
+      const characterId = getParamId(req);
+      const character = await db.character.getById(characterId);
+      if (!character) {
+        return res.status(404).json({ error: 'Character not found' });
+      }
+
+      if (!character.isNpc) {
+        return res.status(400).json({ error: 'Character is not in NPC mode' });
+      }
+
+      await db.character.update(characterId, {
+        isNpc: false,
+        lastPlayerLoginAt: new Date(),
+        nextTickAt: new Date(Date.now() + 30 * 60 * 1000),
+      });
+
+      wsServer.broadcastToCharacter(characterId, {
+        type: 'character_resurrected',
+        data: {
+          characterId: character.id,
+          characterName: character.name,
+          resurrectedAt: new Date().toISOString(),
+        },
+      });
+
+      res.json({
+        message: 'Character resurrected',
+        character: {
+          id: character.id,
+          name: character.name,
+          isNpc: false,
+        },
+      });
+    } catch (error) {
+      console.error('[API] Error resurrecting character:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

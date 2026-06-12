@@ -1,5 +1,6 @@
-import { Character } from '../../models';
+import { Character, Milestone } from '../../models';
 import { TaskDefinition as TaskDef } from '../../data/tasks';
+import { WorldEvent } from '../../data/world';
 export interface ScoredTask {
     task: TaskDef;
     score: number;
@@ -30,8 +31,10 @@ export interface DecisionContext {
         targetId: string;
         affinity: number;
     }[];
+    activeMilestones?: Milestone[];
+    activeWorldEvents?: WorldEvent[];
 }
-export declare function buildTaskPool(character: Character): TaskDef[];
+export declare function buildTaskPool(character: Character, activeWorldEvents?: WorldEvent[]): TaskDef[];
 export declare function scoreTasks(tasks: TaskDef[], context: DecisionContext): ScoredTask[];
 export declare function resolveTies(scoredTasks: ScoredTask[], character: Character): ScoredTask[];
 export declare function runDecisionMotor(character: Character, context: DecisionContext): ScoredTask[];

@@ -19,14 +19,14 @@ export class StubDBAdapter implements DBAdapter {
   };
 
   diary = {
-    async getByCharacterId(): Promise<any[]> { return []; },
+    async getByCharacterId(_characterId: string): Promise<any[]> { return []; },
     async create(): Promise<any> { return {}; },
     async getAnchored(): Promise<any[]> { return []; },
     async enforceLimit(): Promise<void> {},
   };
 
   milestones = {
-    async getByCharacterId(): Promise<any[]> { return []; },
+    async getByCharacterId(_characterId: string): Promise<any[]> { return []; },
     async create(): Promise<any> { return {}; },
     async getActiveContext(): Promise<any[]> { return []; },
   };
@@ -39,7 +39,7 @@ export class StubDBAdapter implements DBAdapter {
   };
 
   relations = {
-    async getByCharacterId(): Promise<any[]> { return []; },
+    async getByCharacterId(_characterId: string): Promise<any[]> { return []; },
     async create(): Promise<any> { return {}; },
     async update(): Promise<any> { return {}; },
     async getByTarget(): Promise<null> { return null; },
@@ -47,7 +47,7 @@ export class StubDBAdapter implements DBAdapter {
 
   suggestions = {
     async getPending(): Promise<null> { return null; },
-    async getByCharacterId(): Promise<any[]> { return []; },
+    async getByCharacterId(_characterId: string): Promise<any[]> { return []; },
     async create(): Promise<any> { return {}; },
     async markProcessed(): Promise<void> {},
     async replacePending(): Promise<any> { return {}; },

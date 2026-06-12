@@ -13,6 +13,12 @@ export declare class BullMQAdapter implements QueueAdapter {
     enqueueWorldTick(): Promise<void>;
     scheduleNextTick(characterId: string, nextTickAt: Date): Promise<void>;
     cancelPendingTicks(characterId: string): Promise<void>;
+    getQueueStats(): Promise<{
+        waiting: number;
+        active: number;
+        delayed: number;
+        failed: number;
+    }>;
     createWorker(processFn: (job: Job<JobData>) => Promise<void>): Worker;
 }
 //# sourceMappingURL=bullmq-adapter.d.ts.map

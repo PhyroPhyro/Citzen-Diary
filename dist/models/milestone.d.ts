@@ -14,5 +14,7 @@ export interface Milestone {
     relatedEventId: string | null;
     diaryEntryId: string | null;
     isActiveContext: boolean;
+    parentMilestoneId: string | null;
+    chainOrder: number;
 }
 //# sourceMappingURL=milestone.d.ts.map

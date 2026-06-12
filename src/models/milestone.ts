@@ -34,4 +34,6 @@ export interface Milestone {
   relatedEventId: string | null;
   diaryEntryId: string | null;
   isActiveContext: boolean;
+  parentMilestoneId: string | null;
+  chainOrder: number;
 }

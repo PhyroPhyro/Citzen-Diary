@@ -109,6 +109,8 @@ At the beginning of every session, verify external services before coding:
 - If tests fail, fix before proceeding
 - Add new tests when adding new functionality
 - Update existing tests when modifying behavior
+- **301 tests passing** (as of 2026-06-12)
+- **DiarySource type:** `src/models/diary.ts` → `'llm' | 'template' | 'mock'`. Source `'mock'` is set when `CascadeLLMProvider.activeProvider === 'mock'` (fallback ativo). Use `(llm as any).activeProvider` para detecção, não `constructor.name`.
 
 ## Architecture
 - **Backend-first:** toda simulação ocorre no servidor. O cliente é apenas janela de leitura e interação mínima.
@@ -126,6 +128,20 @@ POST /character/:id/suggestion   → jogador envia sugestão/conselho
 GET  /world/region/:id           → estado de uma região
 GET  /world/events               → eventos globais ativos
 POST /player/login               → atualiza timestamp de login
+POST /character/:id/pray         → oração (+ fé, - mood negativo)
+POST /character/:id/name-npc     → batizar NPC
+POST /character/:id/mark-entry   → favoritar entrada
+PUT  /milestone/:id/rename       → renomear marco
+POST /character/create           → criação de personagem
+GET  /questionnaire              → perguntas do questionário
+GET  /admin/quota                → status de quota LLM
+GET  /admin/metrics              → métricas do scheduler
+GET  /admin/milestones/:id       → listar marcos de personagem
+POST /admin/force-milestone      → forçar geração de marco
+GET  /admin/export-diary/:id     → exportar diário JSON
+POST /character/:id/evolve-traits → evolução de traços (F19)
+POST /character/:id/change-vocation → mudança de vocação (F20)
+POST /character/:id/resurrect    → ressuscitar personagem NPC (F19)
 ```
 
 ### Directory Layout
@@ -135,13 +151,15 @@ POST /player/login               → atualiza timestamp de login
 | `src/core/` | Character engine, decision motor, tick scheduler |
 | `src/core/decision/` | motor.ts (score, pool, ranking), narrative-state.ts |
 | `src/core/tick/` | character-tick.ts (full tick flow) |
+| `src/core/npc/` | milestone-system.ts, npc-system.ts |
 | `src/llm/` | LLM integration (Gemini + Mock), context building |
 | `src/models/` | TypeScript interfaces (Character, Traits, Mood, etc.) |
 | `src/db/` | PostgreSQL schema, migrations (10 files), adapter interface + stub |
 | `src/queue/` | BullMQ adapter interface + stub |
-| `src/data/` | Tasks (~40), world data, templates, questionnaire |
-| `src/world/` | Locations, regions, events, global state |
+| `src/data/` | Tasks (~80), world data, templates, questionnaire |
+| `src/world/` | Locations, regions, events, dynamic-events.ts |
 | `src/diary/` | Diary entry generation, templates, LLM context builder |
+| `src/cli/` | Admin CLI (tick, status, milestones, export) |
 
 ## Key Systems
 

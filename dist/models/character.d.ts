@@ -42,8 +42,17 @@ export interface Character {
     lastPlayerLoginAt: Date;
     isNpc: boolean;
     emergentSpecialization: string | null;
+    specializations: string[];
     richTickCount: number;
     lastPrayAt: Date | null;
+    visitedLocations: string[];
+    traitHistory: {
+        trait: string;
+        oldValue: number;
+        newValue: number;
+        changedAt: Date;
+    }[];
+    previousVocation: string | null;
 }
 export interface CharacterStatus {
     name: string;

@@ -25,4 +25,11 @@ export declare const COMERCIANTE_TASKS: TaskDefinition[];
 export declare function getTasksByVocation(vocation: string): TaskDefinition[];
 export declare function getAllTasks(): TaskDefinition[];
 export declare function getTaskById(id: string): TaskDefinition | undefined;
+export declare const CLERIGO_TASKS: TaskDefinition[];
+export declare const TROVADOR_TASKS: TaskDefinition[];
+export declare const GUERREIRO_TASKS: TaskDefinition[];
+export declare const ESCRIBA_TASKS: TaskDefinition[];
+export declare const VORANT_TASKS: TaskDefinition[];
+export declare function getTasksByVocation11(vocation: string): TaskDefinition[];
+export declare function getAllVocation11Ids(): string[];
 //# sourceMappingURL=tasks.d.ts.map

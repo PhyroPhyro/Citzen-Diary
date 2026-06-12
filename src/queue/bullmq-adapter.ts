@@ -3,6 +3,9 @@ import { QueueAdapter, JobData } from './adapter';
 
 const CHARACTER_TICK_QUEUE = 'character-tick';
 const WORLD_TICK_QUEUE = 'world-tick';
+const CONCURRENCY = parseInt(process.env.BULLMQ_CONCURRENCY || '5', 10);
+const MAX_RETRIES = parseInt(process.env.BULLMQ_MAX_RETRIES || '3', 10);
+const BACKOFF_DELAY = parseInt(process.env.BULLMQ_BACKOFF_DELAY || '5000', 10);
 
 export class BullMQAdapter implements QueueAdapter {
   private characterTickQueue: Queue;
@@ -22,7 +25,7 @@ export class BullMQAdapter implements QueueAdapter {
   async connect(): Promise<void> {
     await this.characterTickQueue.waitUntilReady();
     await this.worldTickQueue.waitUntilReady();
-    console.log('[Queue] BullMQ adapter connected');
+    console.log(`[Queue] BullMQ adapter connected (concurrency: ${CONCURRENCY}, max retries: ${MAX_RETRIES})`);
   }
 
   async disconnect(): Promise<void> {
@@ -54,6 +57,11 @@ export class BullMQAdapter implements QueueAdapter {
         delay: delayMs,
         removeOnComplete: true,
         removeOnFail: false,
+        attempts: MAX_RETRIES,
+        backoff: {
+          type: 'exponential',
+          delay: BACKOFF_DELAY,
+        },
       }
     );
   }
@@ -83,6 +91,16 @@ export class BullMQAdapter implements QueueAdapter {
     }
   }
 
+  async getQueueStats(): Promise<{ waiting: number; active: number; delayed: number; failed: number }> {
+    const counts = await this.characterTickQueue.getJobCounts();
+    return {
+      waiting: counts.waiting,
+      active: counts.active,
+      delayed: counts.delayed,
+      failed: counts.failed,
+    };
+  }
+
   createWorker(
     processFn: (job: Job<JobData>) => Promise<void>
   ): Worker {
@@ -93,7 +111,7 @@ export class BullMQAdapter implements QueueAdapter {
       },
       {
         connection: { url: (this.characterTickQueue as any).opts.connection },
-        concurrency: 5,
+        concurrency: CONCURRENCY,
       }
     );
 
@@ -106,7 +124,7 @@ export class BullMQAdapter implements QueueAdapter {
     });
 
     this.worker.on('failed', (job: Job | undefined, err: Error) => {
-      console.error(`[Queue] Job ${job?.id} failed:`, err.message);
+      console.error(`[Queue] Job ${job?.id} failed after ${job?.opts?.attempts} attempts:`, err.message);
     });
 
     return this.worker;
