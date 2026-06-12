@@ -2,6 +2,7 @@ import { DBAdapter } from '../../db';
 import { QueueAdapter } from '../../queue';
 import { LLMProvider, CascadeLLMProvider } from '../../llm';
 import { executeCharacterTick, shouldConvertToNPC } from './character-tick';
+import { wsServer } from '../../api/websocket';
 
 const TICK_CHECK_INTERVAL = 30000;
 const LLM_RETRY_CHECK_INTERVAL = 60 * 60 * 1000;
@@ -13,6 +14,9 @@ export interface SchedulerMetrics {
   avgTickTimeMs: number;
   llmCalls: { gemini: number; cerebras: number; mock: number };
   lastCycleAt: Date | null;
+  retryAttempts: number;
+  retrySuccesses: number;
+  retryFailures: number;
 }
 
 export class WorldTickScheduler {
@@ -25,6 +29,9 @@ export class WorldTickScheduler {
     avgTickTimeMs: 0,
     llmCalls: { gemini: 0, cerebras: 0, mock: 0 },
     lastCycleAt: null,
+    retryAttempts: 0,
+    retrySuccesses: 0,
+    retryFailures: 0,
   };
 
   constructor(
@@ -124,10 +131,13 @@ export class WorldTickScheduler {
       } catch (error) {
         this.metrics.totalErrors++;
         console.error(`[Scheduler] Error ticking character ${character.id}:`, error);
+        this.metrics.retryAttempts++;
         try {
           await executeCharacterTick(character, this.db, this.queue, this.llm);
+          this.metrics.retrySuccesses++;
           console.log(`[Scheduler] Retry succeeded for character ${character.id}`);
         } catch (retryError) {
+          this.metrics.retryFailures++;
           console.error(`[Scheduler] Retry failed for character ${character.id}:`, retryError);
         }
       }
@@ -148,9 +158,20 @@ export class WorldTickScheduler {
   }
 
   private async convertToNpc(characterId: string) {
+    const character = await this.db.character.getById(characterId);
+    if (!character) return;
     await this.db.character.update(characterId, {
       isNpc: true,
       nextTickAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+    wsServer.broadcastToCharacter(characterId, {
+      type: 'npc_conversion',
+      data: {
+        characterId: character.id,
+        characterName: character.name,
+        reason: 'player_absence_48h',
+        convertedAt: new Date().toISOString(),
+      },
     });
   }
 }

@@ -11,6 +11,9 @@ export interface SchedulerMetrics {
         mock: number;
     };
     lastCycleAt: Date | null;
+    retryAttempts: number;
+    retrySuccesses: number;
+    retryFailures: number;
 }
 export declare class WorldTickScheduler {
     private db;
