@@ -10,9 +10,14 @@ const generator_1 = require("../../diary/generator");
 const world_1 = require("../../data/world");
 const websocket_1 = require("../../api/websocket");
 const milestone_system_1 = require("../npc/milestone-system");
+const npc_autonomy_1 = require("../npc/npc-autonomy");
+const cross_character_1 = require("../npc/cross-character");
 const objective_1 = require("../../models/objective");
 const mood_1 = require("../../models/mood");
 const dynamic_events_1 = require("../../world/dynamic-events");
+const resources_1 = require("../../data/resources");
+const quest_engine_1 = require("../quests/quest-engine");
+const combat_engine_1 = require("../combat/combat-engine");
 function calculateTickInterval(character, lastRichnessScore = 0) {
     const hoursSinceLogin = (Date.now() - character.lastPlayerLoginAt.getTime()) / (1000 * 60 * 60);
     let absenceInterval;
@@ -31,7 +36,7 @@ function calculateTickInterval(character, lastRichnessScore = 0) {
     else
         return -1;
     if (character.isNpc)
-        return -1;
+        return (0, npc_autonomy_1.getNpcTickInterval)();
     const narrativeMultiplier = (0, narrative_state_1.getNarrativeTickMultiplier)(lastRichnessScore);
     return Math.round(absenceInterval * narrativeMultiplier);
 }
@@ -108,7 +113,7 @@ async function executeCharacterTick(character, db, queue, llm) {
         milestoneId = firstMilestone.id;
         isAnchored = firstMilestone.importance !== 'minor';
     }
-    if (narrativeState.isRich) {
+    if (narrativeState.isRich && !character.isNpc) {
         const llmContext = (0, llm_context_1.buildLLMContext)(character, chosen, narrativeState, location, activeEvents, []);
         const llmResult = await llm.generateDiaryEntry(llmContext);
         const isCascade = llm.constructor.name === 'CascadeLLMProvider';
@@ -154,6 +159,94 @@ async function executeCharacterTick(character, db, queue, llm) {
                 isAnchored: diaryEntry.isAnchored,
             },
         });
+    }
+    // Economy: resource production and consumption
+    try {
+        await db.economy.createInventory(character.id);
+        const producedResources = (0, resources_1.getResourcesByProducerTask)(task.id);
+        for (const res of producedResources) {
+            const quantity = task.category === 'work' ? 2 : 1;
+            await db.economy.updateInventory(character.id, res.id, quantity);
+        }
+        const consumedResources = (0, resources_1.getResourcesByConsumerTask)(task.id);
+        for (const res of consumedResources) {
+            const inv = await db.economy.getInventory(character.id);
+            const hasItem = inv.items.find((i) => i.resourceId === res.id);
+            if (hasItem && hasItem.quantity >= 1) {
+                await db.economy.updateInventory(character.id, res.id, -1);
+            }
+        }
+        const baseGoldEarned = task.baseScore >= 8 ? 5 : task.baseScore >= 5 ? 3 : 1;
+        const inv = await db.economy.getInventory(character.id);
+        await db.economy.updateGold(character.id, inv.gold + baseGoldEarned);
+    }
+    catch (e) {
+        // Economy processing is non-critical, continue
+    }
+    // Skill XP gain based on task
+    try {
+        await (0, combat_engine_1.awardSkillXp)(character.id, task.id, db);
+    }
+    catch (e) {
+        // Skill XP is non-critical, continue
+    }
+    // Quest processing: advance active quests based on chosen task
+    try {
+        const activeQuests = await db.quests.getActive(character.id);
+        for (const quest of activeQuests) {
+            const advanced = await (0, quest_engine_1.advanceQuestStep)(quest, character, task.id, character.locationId, llm, db);
+            if (advanced && advanced.state === 'completed') {
+                const questTrigger = (0, quest_engine_1.getQuestMilestoneTrigger)(advanced);
+                if (questTrigger) {
+                    milestone = {
+                        id: crypto.randomUUID(),
+                        characterId: character.id,
+                        importance: advanced.tier >= 3 ? 'decisive' : advanced.tier >= 2 ? 'relevant' : 'minor',
+                        title: `Missão Completa: ${advanced.title}`,
+                        description: `${advanced.title} foi concluída com sucesso.`,
+                        occurredAt: new Date(),
+                        locationId: character.locationId,
+                        locationName: location?.name || 'Desconhecido',
+                        triggerType: questTrigger,
+                        relatedCharacterIds: [],
+                        relatedEventId: null,
+                        diaryEntryId: diaryEntry?.id || null,
+                        isActiveContext: true,
+                        parentMilestoneId: null,
+                        chainOrder: 0,
+                    };
+                    await db.milestones.create(milestone);
+                }
+            }
+        }
+    }
+    catch (e) {
+        // Quest processing is non-critical, continue
+    }
+    // NPC-specific: relationship building and cross-character interaction
+    try {
+        const allActive = await db.character.getAllActive();
+        await (0, npc_autonomy_1.buildNpcRelationships)(character.id, character.locationId, db, allActive);
+        const nearby = allActive.filter((c) => c.locationId === character.locationId && c.id !== character.id && !c.isNpc);
+        if (nearby.length > 0) {
+            const interaction = await (0, cross_character_1.createInteractionEvent)(character, nearby, db);
+            if (interaction) {
+                const outcome = interaction.outcomes.find((o) => o.characterId === character.id);
+                if (outcome) {
+                    for (const [emotion, delta] of Object.entries(outcome.moodDelta)) {
+                        const key = emotion;
+                        character.mood[key] = Math.max(0, Math.min(10, character.mood[key] + delta));
+                    }
+                }
+            }
+        }
+        // NPC autonomous mood drift
+        if (character.isNpc) {
+            character.mood = (0, npc_autonomy_1.processNpcMood)(character.mood);
+        }
+    }
+    catch (e) {
+        // NPC interaction is non-critical, continue
     }
     if (character.objective && character.objective.progressScore < 100) {
         const progressDelta = (0, objective_1.calculateObjectiveProgress)(task.id, character.objective.type);

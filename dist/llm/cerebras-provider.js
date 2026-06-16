@@ -58,6 +58,10 @@ class CerebrasProvider {
         const response = await this.callLLM(context);
         return this.parseJSON(response);
     }
+    async generateQuestBranch(context) {
+        const response = await this.callLLM(context);
+        return this.parseJSON(response);
+    }
 }
 exports.CerebrasProvider = CerebrasProvider;
 //# sourceMappingURL=cerebras-provider.js.map

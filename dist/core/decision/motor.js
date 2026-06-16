@@ -10,6 +10,7 @@ const objective_1 = require("../../models/objective");
 const relation_1 = require("../../models/relation");
 const tasks_1 = require("../../data/tasks");
 const world_1 = require("../../data/world");
+const modifier_1 = require("../economy/modifier");
 const MOOD_CATEGORY_MAP = {
     joy: { favored: ['social', 'exploration', 'leisure'], penalized: ['rest'] },
     sadness: { favored: ['rest', 'work'], penalized: ['social'] },
@@ -291,7 +292,7 @@ function buildTaskPool(character, activeWorldEvents) {
     return [...availableTasks, ...dynamicTasks];
 }
 function scoreTasks(tasks, context) {
-    const { character, pendingSuggestion, activeCommitments, relationsInLocation, activeMilestones } = context;
+    const { character, pendingSuggestion, activeCommitments, relationsInLocation, activeMilestones, marketPrices, inventory } = context;
     return tasks.map((task) => {
         const category = TASK_CATEGORY_MAP[task.id] || 'work';
         const base = task.baseScore;
@@ -307,7 +308,10 @@ function scoreTasks(tasks, context) {
         const faith = calculateFaithModifier(character, pendingSuggestion, task);
         const milestone = calculateMilestoneModifier(task, activeMilestones, character);
         const specialization = calculateSpecializationModifier(task, character);
-        const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith + milestone + specialization;
+        const economy = marketPrices
+            ? (0, modifier_1.calculateEconomyModifier)(task, character, inventory ? { characterId: character.id, items: inventory.items, gold: inventory.gold, storageCapacity: 50, storageUsed: 0 } : null, marketPrices)
+            : 0;
+        const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith + milestone + specialization + economy;
         return {
             task,
             score,
@@ -321,6 +325,8 @@ function scoreTasks(tasks, context) {
                 environment,
                 relation,
                 faith,
+                economy,
+                specialization,
             },
         };
     });

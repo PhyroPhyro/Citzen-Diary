@@ -22,6 +22,7 @@ export declare class WorldTickScheduler {
     private intervalId;
     private retryIntervalId;
     private running;
+    private lastNpcSpawnCheck;
     private metrics;
     constructor(db: DBAdapter, queue: QueueAdapter, llm: LLMProvider);
     getMetrics(): SchedulerMetrics;

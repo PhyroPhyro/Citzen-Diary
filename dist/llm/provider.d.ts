@@ -18,11 +18,15 @@ export interface NPCProfileLLMResponse {
 export interface BioLLMResponse {
     bio: string;
 }
+export interface QuestBranchResponse {
+    nextStepId: string;
+}
 export interface LLMProvider {
     generateDiaryEntry(context: string): Promise<LLMResponse>;
     generateMilestone(context: string): Promise<MilestoneLLMResponse>;
     generateSpecialization(context: string): Promise<SpecializationLLMResponse>;
     generateNPCProfile(context: string): Promise<NPCProfileLLMResponse>;
     generateBio(context: string): Promise<BioLLMResponse>;
+    generateQuestBranch(context: string): Promise<QuestBranchResponse>;
 }
 //# sourceMappingURL=provider.d.ts.map

@@ -16,4 +16,6 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
 Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./npc-system"), exports);
 __exportStar(require("./milestone-system"), exports);
+__exportStar(require("./npc-autonomy"), exports);
+__exportStar(require("./cross-character"), exports);
 //# sourceMappingURL=index.js.map

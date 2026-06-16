@@ -90,6 +90,21 @@ class FallbackLLMProvider {
             throw error;
         }
     }
+    async generateQuestBranch(_context) {
+        if (this.useFallback)
+            return this.fallback.generateQuestBranch();
+        try {
+            return await this.primary.generateQuestBranch(_context);
+        }
+        catch (error) {
+            if (this.isQuotaError(error)) {
+                console.warn('[LLM] Gemini quota exceeded, falling back to Mock provider');
+                this.useFallback = true;
+                return this.fallback.generateQuestBranch();
+            }
+            throw error;
+        }
+    }
 }
 exports.FallbackLLMProvider = FallbackLLMProvider;
 //# sourceMappingURL=fallback-provider.js.map

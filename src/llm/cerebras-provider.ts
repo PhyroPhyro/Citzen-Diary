@@ -5,6 +5,7 @@ import {
   SpecializationLLMResponse,
   NPCProfileLLMResponse,
   BioLLMResponse,
+  QuestBranchResponse,
 } from './provider';
 
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
@@ -74,5 +75,10 @@ export class CerebrasProvider implements LLMProvider {
   async generateBio(context: string): Promise<BioLLMResponse> {
     const response = await this.callLLM(context);
     return this.parseJSON<BioLLMResponse>(response);
+  }
+
+  async generateQuestBranch(context: string): Promise<QuestBranchResponse> {
+    const response = await this.callLLM(context);
+    return this.parseJSON<QuestBranchResponse>(response);
   }
 }

@@ -389,9 +389,9 @@ describe('Phase 19 — Sistemas Emergentes', () => {
   });
 
   describe('Resurrect character endpoint logic', () => {
-    it('shouldConvertToNPC returns -1 interval for NPC characters', () => {
+    it('shouldConvertToNPC returns 6h fixed interval for NPC characters', () => {
       const character = createTestCharacter({ isNpc: true });
-      expect(calculateTickInterval(character, 0)).toBe(-1);
+      expect(calculateTickInterval(character, 0)).toBe(6 * 60 * 60 * 1000);
     });
   });
 

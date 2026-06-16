@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorldTickScheduler = void 0;
 const llm_1 = require("../../llm");
 const character_tick_1 = require("./character-tick");
+const npc_autonomy_1 = require("../npc/npc-autonomy");
 const websocket_1 = require("../../api/websocket");
 const TICK_CHECK_INTERVAL = 30000;
 const LLM_RETRY_CHECK_INTERVAL = 60 * 60 * 1000;
@@ -14,6 +15,7 @@ class WorldTickScheduler {
     intervalId = null;
     retryIntervalId = null;
     running = false;
+    lastNpcSpawnCheck = 0;
     metrics = {
         totalTicks: 0,
         totalErrors: 0,
@@ -138,6 +140,23 @@ class WorldTickScheduler {
         }
         if (npcConverted > 0) {
             console.log(`[Scheduler] Converted ${npcConverted} character(s) to NPC mode`);
+        }
+        // NPC lifecycle management (once per cycle)
+        try {
+            await (0, npc_autonomy_1.ensureNpcCharacters)(this.db);
+        }
+        catch (e) {
+            // NPC lifecycle is non-critical
+        }
+        this.lastNpcSpawnCheck = this.lastNpcSpawnCheck || 0;
+        if (Date.now() - this.lastNpcSpawnCheck > 60 * 60 * 1000) {
+            try {
+                await (0, npc_autonomy_1.autoSpawnNpcs)(this.db, this.llm);
+                this.lastNpcSpawnCheck = Date.now();
+            }
+            catch (e) {
+                // NPC spawn is non-critical
+            }
         }
     }
     async convertToNpc(characterId) {

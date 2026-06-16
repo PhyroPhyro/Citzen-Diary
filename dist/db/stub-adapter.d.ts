@@ -40,6 +40,22 @@ export declare class StubDBAdapter implements DBAdapter {
         markProcessed(): Promise<void>;
         replacePending(): Promise<any>;
     };
+    economy: {
+        getInventory(): Promise<any>;
+        updateGold(): Promise<void>;
+        updateInventory(): Promise<void>;
+        getMarketPrices(): Promise<any[]>;
+        updateMarketPrice(): Promise<void>;
+        getTradeRoutes(): Promise<any[]>;
+        createTradeRoute(): Promise<any>;
+        createInventory(): Promise<void>;
+    };
+    quests: {
+        getByCharacterId(): Promise<any[]>;
+        getActive(): Promise<any[]>;
+        create(data: any): Promise<any>;
+        update(): Promise<void>;
+    };
     world: {
         getLocations(): Promise<any[]>;
         getRegions(): Promise<any[]>;

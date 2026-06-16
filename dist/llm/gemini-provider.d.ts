@@ -1,4 +1,4 @@
-import { LLMProvider, LLMResponse, MilestoneLLMResponse, SpecializationLLMResponse, NPCProfileLLMResponse, BioLLMResponse } from './provider';
+import { LLMProvider, LLMResponse, MilestoneLLMResponse, SpecializationLLMResponse, NPCProfileLLMResponse, BioLLMResponse, QuestBranchResponse } from './provider';
 export declare class GeminiProvider implements LLMProvider {
     private genAI;
     private model;
@@ -10,5 +10,6 @@ export declare class GeminiProvider implements LLMProvider {
     generateSpecialization(context: string): Promise<SpecializationLLMResponse>;
     generateNPCProfile(context: string): Promise<NPCProfileLLMResponse>;
     generateBio(context: string): Promise<BioLLMResponse>;
+    generateQuestBranch(context: string): Promise<QuestBranchResponse>;
 }
 //# sourceMappingURL=gemini-provider.d.ts.map

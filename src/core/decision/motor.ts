@@ -5,6 +5,8 @@ import { getCommitmentModifier } from '../../models/objective';
 import { affinityToModifier } from '../../models/relation';
 import { getTasksByVocation, UNIVERSAL_TASKS, TaskDefinition as TaskDef, getTasksByVocation11 } from '../../data/tasks';
 import { getEventsByLocation, getLocationById, WorldEvent } from '../../data/world';
+import { calculateEconomyModifier } from '../economy/modifier';
+import { MarketPrice } from '../../models/economy';
 
 export interface ScoredTask {
   task: TaskDef;
@@ -19,6 +21,8 @@ export interface ScoredTask {
     environment: number;
     relation: number;
     faith: number;
+    economy: number;
+    specialization: number;
   };
 }
 
@@ -33,6 +37,11 @@ export interface DecisionContext {
   relationsInLocation?: { targetId: string; affinity: number }[];
   activeMilestones?: Milestone[];
   activeWorldEvents?: WorldEvent[];
+  marketPrices?: MarketPrice[];
+  inventory?: {
+    gold: number;
+    items: { resourceId: string; quantity: number }[];
+  };
 }
 
 const MOOD_CATEGORY_MAP: Record<string, { favored: string[]; penalized: string[] }> = {
@@ -318,7 +327,7 @@ export function scoreTasks(
   tasks: TaskDef[],
   context: DecisionContext
 ): ScoredTask[] {
-  const { character, pendingSuggestion, activeCommitments, relationsInLocation, activeMilestones } = context;
+  const { character, pendingSuggestion, activeCommitments, relationsInLocation, activeMilestones, marketPrices, inventory } = context;
 
   return tasks.map((task) => {
     const category = TASK_CATEGORY_MAP[task.id] || 'work';
@@ -336,8 +345,16 @@ export function scoreTasks(
     const faith = calculateFaithModifier(character, pendingSuggestion, task);
     const milestone = calculateMilestoneModifier(task, activeMilestones, character);
     const specialization = calculateSpecializationModifier(task, character);
+    const economy = marketPrices
+      ? calculateEconomyModifier(
+          task,
+          character,
+          inventory ? { characterId: character.id, items: inventory.items, gold: inventory.gold, storageCapacity: 50, storageUsed: 0 } : null,
+          marketPrices
+        )
+      : 0;
 
-    const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith + milestone + specialization;
+    const score = base + traitPrimary + traitSecondary + mood + objective + commitment + environment + relation + faith + milestone + specialization + economy;
 
     return {
       task,
@@ -352,6 +369,8 @@ export function scoreTasks(
         environment,
         relation,
         faith,
+        economy,
+        specialization,
       },
     };
   });

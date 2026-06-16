@@ -1,4 +1,4 @@
-import { LLMProvider, LLMResponse, MilestoneLLMResponse, SpecializationLLMResponse, NPCProfileLLMResponse, BioLLMResponse } from './provider';
+import { LLMProvider, LLMResponse, MilestoneLLMResponse, SpecializationLLMResponse, NPCProfileLLMResponse, BioLLMResponse, QuestBranchResponse } from './provider';
 export declare class CascadeLLMProvider implements LLMProvider {
     private gemini;
     private cerebras;
@@ -20,5 +20,6 @@ export declare class CascadeLLMProvider implements LLMProvider {
     generateSpecialization(context: string): Promise<SpecializationLLMResponse>;
     generateNPCProfile(context: string): Promise<NPCProfileLLMResponse>;
     generateBio(context: string): Promise<BioLLMResponse>;
+    generateQuestBranch(context: string): Promise<QuestBranchResponse>;
 }
 //# sourceMappingURL=cascade-provider.d.ts.map

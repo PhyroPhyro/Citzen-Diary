@@ -2,6 +2,7 @@ import { DBAdapter } from '../../db';
 import { QueueAdapter } from '../../queue';
 import { LLMProvider, CascadeLLMProvider } from '../../llm';
 import { executeCharacterTick, shouldConvertToNPC } from './character-tick';
+import { ensureNpcCharacters, autoSpawnNpcs } from '../npc/npc-autonomy';
 import { wsServer } from '../../api/websocket';
 
 const TICK_CHECK_INTERVAL = 30000;
@@ -23,6 +24,7 @@ export class WorldTickScheduler {
   private intervalId: NodeJS.Timeout | null = null;
   private retryIntervalId: NodeJS.Timeout | null = null;
   private running = false;
+  private lastNpcSpawnCheck = 0;
   private metrics: SchedulerMetrics = {
     totalTicks: 0,
     totalErrors: 0,
@@ -154,6 +156,22 @@ export class WorldTickScheduler {
     }
     if (npcConverted > 0) {
       console.log(`[Scheduler] Converted ${npcConverted} character(s) to NPC mode`);
+    }
+
+    // NPC lifecycle management (once per cycle)
+    try {
+      await ensureNpcCharacters(this.db);
+    } catch (e) {
+      // NPC lifecycle is non-critical
+    }
+    this.lastNpcSpawnCheck = this.lastNpcSpawnCheck || 0;
+    if (Date.now() - this.lastNpcSpawnCheck > 60 * 60 * 1000) {
+      try {
+        await autoSpawnNpcs(this.db, this.llm);
+        this.lastNpcSpawnCheck = Date.now();
+      } catch (e) {
+        // NPC spawn is non-critical
+      }
     }
   }
 

@@ -167,8 +167,8 @@ describe('resolveTies', () => {
   it('commitment breaks ties', () => {
     const character = createTestCharacter();
     const scored = [
-      { task: LAVRADOR_TASKS[0], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 2, environment: 0, relation: 0, faith: 0 } },
-      { task: LAVRADOR_TASKS[1], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 0, environment: 0, relation: 0, faith: 0 } },
+      { task: LAVRADOR_TASKS[0], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 2, environment: 0, relation: 0, faith: 0, economy: 0, specialization: 0 } },
+      { task: LAVRADOR_TASKS[1], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 0, environment: 0, relation: 0, faith: 0, economy: 0, specialization: 0 } },
     ];
     const sorted = resolveTies(scored, character);
     expect(sorted[0].breakdown.commitment).toBeGreaterThan(sorted[1].breakdown.commitment);

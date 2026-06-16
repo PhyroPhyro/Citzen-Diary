@@ -5,6 +5,7 @@ import {
   SpecializationLLMResponse,
   NPCProfileLLMResponse,
   BioLLMResponse,
+  QuestBranchResponse,
 } from './provider';
 
 export class MockLLMProvider implements LLMProvider {
@@ -41,5 +42,9 @@ export class MockLLMProvider implements LLMProvider {
     return {
       bio: 'Uma alma que caminha pelo mundo com seus próprios passos, carregando consigo o peso e a leveza de quem escolheu existir.',
     };
+  }
+
+  async generateQuestBranch(): Promise<QuestBranchResponse> {
+    return { nextStepId: 'qrc_4' };
   }
 }

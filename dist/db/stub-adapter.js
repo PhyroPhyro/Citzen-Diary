@@ -46,6 +46,22 @@ class StubDBAdapter {
         async markProcessed() { },
         async replacePending() { return {}; },
     };
+    economy = {
+        async getInventory() { return { gold: 50, storageCapacity: 50, storageUsed: 0, items: [] }; },
+        async updateGold() { },
+        async updateInventory() { },
+        async getMarketPrices() { return []; },
+        async updateMarketPrice() { },
+        async getTradeRoutes() { return []; },
+        async createTradeRoute() { return {}; },
+        async createInventory() { },
+    };
+    quests = {
+        async getByCharacterId() { return []; },
+        async getActive() { return []; },
+        async create(data) { return data; },
+        async update() { },
+    };
     world = {
         async getLocations() { return []; },
         async getRegions() { return []; },

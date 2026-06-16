@@ -3,6 +3,7 @@ export * from './mood';
 export * from './objective';
 export * from './relation';
 export * from './npc';
+export * from './npc-autonomy';
 export * from './character';
 export * from './diary';
 export * from './milestone';

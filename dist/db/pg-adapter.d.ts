@@ -48,6 +48,22 @@ export declare class PostgreSQLAdapter implements DBAdapter {
         markProcessed: (id: string, wasFollowed: boolean) => Promise<void>;
         replacePending: (characterId: string, data: Partial<PendingPlayerAction>) => Promise<PendingPlayerAction>;
     };
+    economy: {
+        getInventory: (characterId: string) => Promise<any>;
+        updateGold: (characterId: string, gold: number) => Promise<void>;
+        updateInventory: (characterId: string, resourceId: string, quantity: number) => Promise<void>;
+        getMarketPrices: (locationId: string) => Promise<any[]>;
+        updateMarketPrice: (locationId: string, resourceId: string, price: number) => Promise<void>;
+        getTradeRoutes: (characterId: string) => Promise<any[]>;
+        createTradeRoute: (data: any) => Promise<any>;
+        createInventory: (characterId: string) => Promise<void>;
+    };
+    quests: {
+        getByCharacterId: (characterId: string) => Promise<any[]>;
+        getActive: (characterId: string) => Promise<any[]>;
+        create: (data: any) => Promise<any>;
+        update: (id: string, data: any) => Promise<any>;
+    };
     world: {
         getLocations: () => Promise<any[]>;
         getRegions: () => Promise<any[]>;

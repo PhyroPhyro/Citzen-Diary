@@ -1,6 +1,7 @@
 import { Character, Milestone } from '../../models';
 import { TaskDefinition as TaskDef } from '../../data/tasks';
 import { WorldEvent } from '../../data/world';
+import { MarketPrice } from '../../models/economy';
 export interface ScoredTask {
     task: TaskDef;
     score: number;
@@ -14,6 +15,8 @@ export interface ScoredTask {
         environment: number;
         relation: number;
         faith: number;
+        economy: number;
+        specialization: number;
     };
 }
 export interface DecisionContext {
@@ -33,6 +36,14 @@ export interface DecisionContext {
     }[];
     activeMilestones?: Milestone[];
     activeWorldEvents?: WorldEvent[];
+    marketPrices?: MarketPrice[];
+    inventory?: {
+        gold: number;
+        items: {
+            resourceId: string;
+            quantity: number;
+        }[];
+    };
 }
 export declare function buildTaskPool(character: Character, activeWorldEvents?: WorldEvent[]): TaskDef[];
 export declare function scoreTasks(tasks: TaskDef[], context: DecisionContext): ScoredTask[];

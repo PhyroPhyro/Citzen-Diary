@@ -1,4 +1,4 @@
-import { LLMProvider, LLMResponse, MilestoneLLMResponse, SpecializationLLMResponse, NPCProfileLLMResponse, BioLLMResponse } from './provider';
+import { LLMProvider, LLMResponse, MilestoneLLMResponse, SpecializationLLMResponse, NPCProfileLLMResponse, BioLLMResponse, QuestBranchResponse } from './provider';
 export declare class FallbackLLMProvider implements LLMProvider {
     private primary;
     private fallback;
@@ -10,5 +10,6 @@ export declare class FallbackLLMProvider implements LLMProvider {
     generateSpecialization(_context: string): Promise<SpecializationLLMResponse>;
     generateNPCProfile(_context: string): Promise<NPCProfileLLMResponse>;
     generateBio(_context: string): Promise<BioLLMResponse>;
+    generateQuestBranch(_context: string): Promise<QuestBranchResponse>;
 }
 //# sourceMappingURL=fallback-provider.d.ts.map

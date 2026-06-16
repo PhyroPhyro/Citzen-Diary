@@ -151,8 +151,8 @@ function createTestCharacter(overrides = {}) {
     (0, vitest_1.it)('commitment breaks ties', () => {
         const character = createTestCharacter();
         const scored = [
-            { task: tasks_1.LAVRADOR_TASKS[0], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 2, environment: 0, relation: 0, faith: 0 } },
-            { task: tasks_1.LAVRADOR_TASKS[1], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 0, environment: 0, relation: 0, faith: 0 } },
+            { task: tasks_1.LAVRADOR_TASKS[0], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 2, environment: 0, relation: 0, faith: 0, economy: 0, specialization: 0 } },
+            { task: tasks_1.LAVRADOR_TASKS[1], score: 10, breakdown: { base: 5, traitPrimary: 2, traitSecondary: 0, mood: 1, objective: 0, commitment: 0, environment: 0, relation: 0, faith: 0, economy: 0, specialization: 0 } },
         ];
         const sorted = (0, motor_1.resolveTies)(scored, character);
         (0, vitest_1.expect)(sorted[0].breakdown.commitment).toBeGreaterThan(sorted[1].breakdown.commitment);

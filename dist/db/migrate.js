@@ -56,6 +56,10 @@ async function runMigrations() {
             '010_seed_world.sql',
             '011_performance_indexes.sql',
             '012_add_last_pray_at.sql',
+            '013_economy.sql',
+            '014_seed_economy.sql',
+            '015_quests.sql',
+            '016_combat.sql',
         ];
         for (const file of migrationFiles) {
             const filePath = path.join(__dirname, 'migrations', file);

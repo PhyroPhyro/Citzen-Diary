@@ -84,9 +84,9 @@ describe('Character Tick - NPC Conversion', () => {
   });
 
   describe('calculateTickInterval', () => {
-    it('returns -1 for NPC characters', () => {
+    it('returns 6h fixed interval for NPC characters', () => {
       const char = createMockCharacter({ isNpc: true });
-      expect(calculateTickInterval(char)).toBe(-1);
+      expect(calculateTickInterval(char)).toBe(6 * 60 * 60 * 1000);
     });
 
     it('returns -1 for characters inactive more than 48h', () => {

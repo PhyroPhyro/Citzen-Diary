@@ -499,6 +499,182 @@ export class PostgreSQLAdapter implements DBAdapter {
     },
   };
 
+  economy = {
+    getInventory: async (characterId: string): Promise<any> => {
+      const invResult = await this.pool.query(
+        'SELECT gold, storage_capacity, storage_used FROM inventories WHERE character_id = $1',
+        [characterId]
+      );
+      if (invResult.rows.length === 0) {
+        await this.pool.query(
+          'INSERT INTO inventories (character_id) VALUES ($1) ON CONFLICT DO NOTHING',
+          [characterId]
+        );
+        return { gold: 50, storageCapacity: 50, storageUsed: 0, items: [] };
+      }
+      const inv = invResult.rows[0];
+      const itemsResult = await this.pool.query(
+        'SELECT resource_id, quantity FROM inventory_items WHERE character_id = $1 AND quantity > 0',
+        [characterId]
+      );
+      return {
+        gold: Number(inv.gold),
+        storageCapacity: Number(inv.storage_capacity),
+        storageUsed: Number(inv.storage_used),
+        items: itemsResult.rows.map((r: any) => ({ resourceId: r.resource_id, quantity: r.quantity })),
+      };
+    },
+
+    updateGold: async (characterId: string, gold: number): Promise<void> => {
+      await this.pool.query(
+        'UPDATE inventories SET gold = $1, last_updated_at = NOW() WHERE character_id = $2',
+        [gold, characterId]
+      );
+    },
+
+    updateInventory: async (characterId: string, resourceId: string, quantity: number): Promise<void> => {
+      await this.pool.query(
+        `INSERT INTO inventory_items (character_id, resource_id, quantity)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (character_id, resource_id)
+         DO UPDATE SET quantity = inventory_items.quantity + $3`,
+        [characterId, resourceId, quantity]
+      );
+      const weightResult = await this.pool.query(
+        `SELECT COALESCE(SUM(ii.quantity * r.weight), 0) as total_weight
+         FROM inventory_items ii
+         JOIN resources r ON r.id = ii.resource_id
+         WHERE ii.character_id = $1 AND ii.quantity > 0`,
+        [characterId]
+      );
+      const totalWeight = Number(weightResult.rows[0]?.total_weight || 0);
+      await this.pool.query(
+        'UPDATE inventories SET storage_used = $1, last_updated_at = NOW() WHERE character_id = $2',
+        [totalWeight, characterId]
+      );
+    },
+
+    getMarketPrices: async (locationId: string): Promise<any[]> => {
+      const result = await this.pool.query(
+        'SELECT resource_id, current_price, base_price FROM market_prices WHERE location_id = $1',
+        [locationId]
+      );
+      return result.rows.map((r: any) => ({
+        resourceId: r.resource_id,
+        currentPrice: Number(r.current_price),
+        basePrice: Number(r.base_price),
+      }));
+    },
+
+    updateMarketPrice: async (locationId: string, resourceId: string, price: number): Promise<void> => {
+      await this.pool.query(
+        `INSERT INTO market_prices (location_id, resource_id, current_price, base_price, volatility)
+         VALUES ($1, $2, $3, $3, 0.1)
+         ON CONFLICT (location_id, resource_id)
+         DO UPDATE SET current_price = $3, last_updated_at = NOW()`,
+        [locationId, resourceId, price]
+      );
+    },
+
+    getTradeRoutes: async (characterId: string): Promise<any[]> => {
+      const result = await this.pool.query(
+        'SELECT * FROM trade_routes WHERE discovered_by = $1 AND is_active = true ORDER BY profit_margin DESC',
+        [characterId]
+      );
+      return result.rows.map((r: any) => ({
+        id: r.id,
+        fromLocationId: r.from_location_id,
+        toLocationId: r.to_location_id,
+        resourceId: r.resource_id,
+        profitMargin: Number(r.profit_margin),
+        distance: r.distance,
+        isActive: r.is_active,
+        discoveredBy: r.discovered_by,
+        discoveredAt: r.discovered_at,
+      }));
+    },
+
+    createTradeRoute: async (data: any): Promise<any> => {
+      const result = await this.pool.query(
+        `INSERT INTO trade_routes (from_location_id, to_location_id, resource_id, profit_margin, distance, discovered_by)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [data.fromLocationId, data.toLocationId, data.resourceId, data.profitMargin, data.distance, data.discoveredBy]
+      );
+      return result.rows[0];
+    },
+
+    createInventory: async (characterId: string): Promise<void> => {
+      await this.pool.query(
+        'INSERT INTO inventories (character_id) VALUES ($1) ON CONFLICT DO NOTHING',
+        [characterId]
+      );
+    },
+  };
+
+  quests = {
+    getByCharacterId: async (characterId: string): Promise<any[]> => {
+      const result = await this.pool.query(
+        'SELECT * FROM quests WHERE character_id = $1 ORDER BY created_at DESC',
+        [characterId]
+      );
+      return result.rows.map((r: any) => ({
+        id: r.id,
+        characterId: r.character_id,
+        templateId: r.template_id,
+        title: r.title,
+        description: r.description,
+        state: r.state,
+        currentStepId: r.current_step_id,
+        completedSteps: typeof r.completed_steps === 'string' ? JSON.parse(r.completed_steps) : r.completed_steps || [],
+        startedAt: r.started_at,
+        completedAt: r.completed_at,
+        failedAt: r.failed_at,
+        tier: r.tier,
+        rewards: typeof r.rewards === 'string' ? JSON.parse(r.rewards) : r.rewards || {},
+      }));
+    },
+
+    getActive: async (characterId: string): Promise<any[]> => {
+      const result = await this.pool.query(
+        "SELECT * FROM quests WHERE character_id = $1 AND state IN ('active', 'in_progress') ORDER BY created_at DESC",
+        [characterId]
+      );
+      return result.rows.map((r: any) => ({
+        id: r.id,
+        characterId: r.character_id,
+        templateId: r.template_id,
+        title: r.title,
+        description: r.description,
+        state: r.state,
+        currentStepId: r.current_step_id,
+        completedSteps: typeof r.completed_steps === 'string' ? JSON.parse(r.completed_steps) : r.completed_steps || [],
+        startedAt: r.started_at,
+        completedAt: r.completed_at,
+        failedAt: r.failed_at,
+        tier: r.tier,
+        rewards: typeof r.rewards === 'string' ? JSON.parse(r.rewards) : r.rewards || {},
+      }));
+    },
+
+    create: async (data: any): Promise<any> => {
+      await this.pool.query(
+        `INSERT INTO quests (id, character_id, template_id, title, description, state, current_step_id, completed_steps, started_at, tier, rewards)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [data.id, data.characterId, data.templateId, data.title, data.description, data.state,
+         data.currentStepId, JSON.stringify(data.completedSteps || []), data.startedAt, data.tier, JSON.stringify(data.rewards || {})]
+      );
+      return data;
+    },
+
+    update: async (id: string, data: any): Promise<any> => {
+      await this.pool.query(
+        `UPDATE quests SET state = $1, current_step_id = $2, completed_steps = $3, completed_at = $4, failed_at = $5 WHERE id = $6`,
+        [data.state, data.currentStepId, JSON.stringify(data.completedSteps || []), data.completedAt, data.failedAt, id]
+      );
+      return data;
+    },
+  };
+
   world = {
     getLocations: async (): Promise<any[]> => {
       const result = await this.pool.query('SELECT * FROM locations ORDER BY name');

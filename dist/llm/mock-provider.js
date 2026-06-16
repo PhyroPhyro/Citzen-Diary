@@ -32,6 +32,9 @@ class MockLLMProvider {
             bio: 'Uma alma que caminha pelo mundo com seus próprios passos, carregando consigo o peso e a leveza de quem escolheu existir.',
         };
     }
+    async generateQuestBranch() {
+        return { nextStepId: 'qrc_4' };
+    }
 }
 exports.MockLLMProvider = MockLLMProvider;
 //# sourceMappingURL=mock-provider.js.map

@@ -19,6 +19,7 @@ __exportStar(require("./mood"), exports);
 __exportStar(require("./objective"), exports);
 __exportStar(require("./relation"), exports);
 __exportStar(require("./npc"), exports);
+__exportStar(require("./npc-autonomy"), exports);
 __exportStar(require("./character"), exports);
 __exportStar(require("./diary"), exports);
 __exportStar(require("./milestone"), exports);

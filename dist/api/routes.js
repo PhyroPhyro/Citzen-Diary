@@ -43,6 +43,8 @@ const npc_system_1 = require("../core/npc/npc-system");
 const world_1 = require("../data/world");
 const milestone_system_1 = require("../core/npc/milestone-system");
 const websocket_1 = require("./websocket");
+const market_1 = require("../core/economy/market");
+const resources_1 = require("../data/resources");
 const router = (0, express_1.Router)();
 function createRoutes(deps) {
     const { db, queue, llm } = deps;
@@ -1008,6 +1010,222 @@ function createRoutes(deps) {
             console.error('[API] Error resurrecting character:', error);
             res.status(500).json({ error: 'Internal server error' });
         }
+    });
+    // Quest Routes
+    router.get('/character/:id/quests', async (req, res) => {
+        try {
+            const quests = await db.quests.getByCharacterId(String(req.params.id));
+            res.json({ quests });
+        }
+        catch (error) {
+            console.error('[API] Error fetching quests:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.post('/character/:id/quests/start', async (req, res) => {
+        try {
+            const characterId = String(req.params.id);
+            const { templateId } = req.body;
+            if (!templateId) {
+                res.status(400).json({ error: 'templateId required' });
+                return;
+            }
+            const character = await db.character.getById(characterId);
+            if (!character) {
+                res.status(404).json({ error: 'Character not found' });
+                return;
+            }
+            const { getQuestTemplate } = await Promise.resolve().then(() => __importStar(require('../data/quests')));
+            const template = getQuestTemplate(templateId);
+            if (!template) {
+                res.status(404).json({ error: 'Quest template not found' });
+                return;
+            }
+            const { startQuest, getAvailableQuests } = await Promise.resolve().then(() => __importStar(require('../core/quests/quest-engine')));
+            const available = getAvailableQuests(character);
+            if (!available.find((q) => q.id === templateId)) {
+                res.status(400).json({ error: 'Quest not available for this character' });
+                return;
+            }
+            const quest = await startQuest(character, templateId, db);
+            if (!quest) {
+                res.status(400).json({ error: 'Could not start quest' });
+                return;
+            }
+            res.json({ quest });
+        }
+        catch (error) {
+            console.error('[API] Error starting quest:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/character/:id/quests/available', async (req, res) => {
+        try {
+            const characterId = String(req.params.id);
+            const character = await db.character.getById(characterId);
+            if (!character) {
+                res.status(404).json({ error: 'Character not found' });
+                return;
+            }
+            const { getAvailableQuests } = await Promise.resolve().then(() => __importStar(require('../core/quests/quest-engine')));
+            const available = getAvailableQuests(character);
+            res.json({ quests: available.map((q) => ({ id: q.id, title: q.title, description: q.description, tier: q.tier, requirements: q.requirements, rewards: q.rewards })) });
+        }
+        catch (error) {
+            console.error('[API] Error fetching available quests:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    // Skill Routes
+    router.get('/character/:id/skills', async (req, res) => {
+        try {
+            const characterId = String(req.params.id);
+            const character = await db.character.getById(characterId);
+            if (!character) {
+                res.status(404).json({ error: 'Character not found' });
+                return;
+            }
+            const { getSkillsByVocation } = await Promise.resolve().then(() => __importStar(require('../data/skills')));
+            const skills = getSkillsByVocation(character.vocation);
+            res.json({ skills: skills.map((s) => ({ id: s.id, name: s.name, description: s.description, category: s.category, maxLevel: s.maxLevel })) });
+        }
+        catch (error) {
+            console.error('[API] Error fetching skills:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.post('/character/:id/encounter', async (req, res) => {
+        try {
+            const characterId = String(req.params.id);
+            const character = await db.character.getById(characterId);
+            if (!character) {
+                res.status(404).json({ error: 'Character not found' });
+                return;
+            }
+            const { generateRandomEncounter, resolveCombatRound, createHealthState } = await Promise.resolve().then(() => __importStar(require('../core/combat/combat-engine')));
+            const encounter = generateRandomEncounter(character);
+            const health = createHealthState(character);
+            const round = resolveCombatRound(character, encounter.hp, encounter.hp, encounter.damage, { type: 'attack', description: 'Ataque inicial' }, health.hp, []);
+            res.json({
+                encounter: { name: encounter.name, type: encounter.type, hp: encounter.hp, damage: encounter.damage },
+                round,
+                health: { hp: health.hp, maxHp: health.maxHp },
+            });
+        }
+        catch (error) {
+            console.error('[API] Error generating encounter:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    // Economic Routes
+    router.get('/character/:id/inventory', async (req, res) => {
+        try {
+            const inventory = await db.economy.getInventory(String(req.params.id));
+            res.json(inventory);
+        }
+        catch (error) {
+            console.error('[API] Error fetching inventory:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/market/:locationId', async (req, res) => {
+        try {
+            const locId = String(req.params.locationId);
+            const location = (0, world_1.getLocationById)(locId);
+            if (!location) {
+                res.status(404).json({ error: 'Location not found' });
+                return;
+            }
+            let prices = await db.economy.getMarketPrices(locId);
+            if (prices.length === 0) {
+                prices = (0, market_1.generateInitialMarketPrices)(locId);
+            }
+            res.json({ location: { id: location.id, name: location.name, type: location.type }, prices });
+        }
+        catch (error) {
+            console.error('[API] Error fetching market:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.post('/character/:id/buy', async (req, res) => {
+        try {
+            const cid = String(req.params.id);
+            const { resourceId, quantity } = req.body;
+            if (!resourceId || !quantity || quantity <= 0) {
+                res.status(400).json({ error: 'resourceId and positive quantity required' });
+                return;
+            }
+            const resource = (0, resources_1.getResourceById)(resourceId);
+            if (!resource) {
+                res.status(404).json({ error: 'Resource not found' });
+                return;
+            }
+            const character = await db.character.getById(cid);
+            if (!character) {
+                res.status(404).json({ error: 'Character not found' });
+                return;
+            }
+            const inventory = await db.economy.getInventory(cid);
+            const prices = await db.economy.getMarketPrices(character.locationId);
+            const priceData = prices.find((p) => p.resourceId === resourceId);
+            if (!priceData) {
+                res.status(400).json({ error: 'Resource not available at this location' });
+                return;
+            }
+            const totalCost = priceData.currentPrice * quantity;
+            if (inventory.gold < totalCost) {
+                res.status(400).json({ error: 'Insufficient gold' });
+                return;
+            }
+            if (!(0, market_1.canAddToInventory)(inventory, resourceId, quantity)) {
+                res.status(400).json({ error: 'Insufficient storage capacity' });
+                return;
+            }
+            await db.economy.updateGold(cid, inventory.gold - totalCost);
+            await db.economy.updateInventory(cid, resourceId, quantity);
+            const updatedInventory = await db.economy.getInventory(cid);
+            res.json({ success: true, totalCost, inventory: updatedInventory });
+        }
+        catch (error) {
+            console.error('[API] Error buying:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.post('/character/:id/sell', async (req, res) => {
+        try {
+            const cid = String(req.params.id);
+            const { resourceId, quantity } = req.body;
+            if (!resourceId || !quantity || quantity <= 0) {
+                res.status(400).json({ error: 'resourceId and positive quantity required' });
+                return;
+            }
+            const character = await db.character.getById(cid);
+            if (!character) {
+                res.status(404).json({ error: 'Character not found' });
+                return;
+            }
+            const inventory = await db.economy.getInventory(cid);
+            const item = inventory.items.find((i) => i.resourceId === resourceId);
+            if (!item || item.quantity < quantity) {
+                res.status(400).json({ error: 'Insufficient items in inventory' });
+                return;
+            }
+            const prices = await db.economy.getMarketPrices(character.locationId);
+            const priceData = prices.find((p) => p.resourceId === resourceId);
+            const sellPrice = priceData ? priceData.currentPrice * 0.8 : 1;
+            const totalRevenue = sellPrice * quantity;
+            await db.economy.updateGold(cid, inventory.gold + totalRevenue);
+            await db.economy.updateInventory(cid, resourceId, -quantity);
+            const updatedInventory = await db.economy.getInventory(cid);
+            res.json({ success: true, totalRevenue, inventory: updatedInventory });
+        }
+        catch (error) {
+            console.error('[API] Error selling:', error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
+    router.get('/resources', async (_req, res) => {
+        res.json({ resources: resources_1.RESOURCES.map((r) => ({ id: r.id, name: r.name, category: r.category, basePrice: r.basePrice, description: r.description })) });
     });
     return router;
 }

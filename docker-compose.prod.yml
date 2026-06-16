@@ -56,17 +56,6 @@ services:
     networks:
       - citizen-diary-net
 
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: citizen-diary-tunnel
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      app:
-        condition: service_healthy
-    networks:
-      - citizen-diary-net
-
 volumes:
   postgres_data:
     driver: local

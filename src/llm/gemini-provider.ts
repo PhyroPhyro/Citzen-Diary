@@ -6,6 +6,7 @@ import {
   SpecializationLLMResponse,
   NPCProfileLLMResponse,
   BioLLMResponse,
+  QuestBranchResponse,
 } from './provider';
 
 export class GeminiProvider implements LLMProvider {
@@ -52,5 +53,10 @@ export class GeminiProvider implements LLMProvider {
   async generateBio(context: string): Promise<BioLLMResponse> {
     const response = await this.callLLM(context);
     return this.parseJSON<BioLLMResponse>(response);
+  }
+
+  async generateQuestBranch(context: string): Promise<QuestBranchResponse> {
+    const response = await this.callLLM(context);
+    return this.parseJSON<QuestBranchResponse>(response);
   }
 }

@@ -53,6 +53,24 @@ export class StubDBAdapter implements DBAdapter {
     async replacePending(): Promise<any> { return {}; },
   };
 
+  economy = {
+    async getInventory(): Promise<any> { return { gold: 50, storageCapacity: 50, storageUsed: 0, items: [] }; },
+    async updateGold(): Promise<void> {},
+    async updateInventory(): Promise<void> {},
+    async getMarketPrices(): Promise<any[]> { return []; },
+    async updateMarketPrice(): Promise<void> {},
+    async getTradeRoutes(): Promise<any[]> { return []; },
+    async createTradeRoute(): Promise<any> { return {}; },
+    async createInventory(): Promise<void> {},
+  };
+
+  quests = {
+    async getByCharacterId(): Promise<any[]> { return []; },
+    async getActive(): Promise<any[]> { return []; },
+    async create(data: any): Promise<any> { return data; },
+    async update(): Promise<void> {},
+  };
+
   world = {
     async getLocations(): Promise<any[]> { return []; },
     async getRegions(): Promise<any[]> { return []; },

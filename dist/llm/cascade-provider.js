@@ -209,6 +209,31 @@ class CascadeLLMProvider {
         this.currentLevel = 'mock';
         return this.mock.generateBio();
     }
+    async generateQuestBranch(context) {
+        if (this.currentLevel === 'mock')
+            return this.mock.generateQuestBranch();
+        if (this.currentLevel === 'gemini' && this.gemini) {
+            try {
+                const { result } = await this.tryGemini(() => this.gemini.generateQuestBranch(context));
+                return result;
+            }
+            catch {
+                // fell through
+            }
+        }
+        if (this.currentLevel === 'cerebras' && this.cerebras) {
+            try {
+                const { result } = await this.tryCerebras(() => this.cerebras.generateQuestBranch(context));
+                return result;
+            }
+            catch {
+                // fell through
+            }
+        }
+        console.warn('[LLM] All providers failed, using Mock');
+        this.currentLevel = 'mock';
+        return this.mock.generateQuestBranch();
+    }
 }
 exports.CascadeLLMProvider = CascadeLLMProvider;
 //# sourceMappingURL=cascade-provider.js.map

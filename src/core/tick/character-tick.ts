@@ -10,9 +10,15 @@ import { getTasksByVocation, UNIVERSAL_TASKS, getTaskById, TaskDefinition } from
 import { getLocationById, getEventsByLocation, WorldEvent } from '../../data/world';
 import { wsServer } from '../../api/websocket';
 import { processMilestones, MilestoneCheckContext, groupTrivialEntries, reevaluateSpecialization } from '../npc/milestone-system';
+import { getNpcTickInterval, buildNpcRelationships, processNpcMood, getDominantEmotion } from '../npc/npc-autonomy';
+import { findNearbyCharacters, createInteractionEvent } from '../npc/cross-character';
 import { calculateObjectiveProgress } from '../../models/objective';
 import { decayMood } from '../../models/mood';
 import { checkDynamicEvents } from '../../world/dynamic-events';
+import { getResourcesByProducerTask, getResourcesByConsumerTask } from '../../data/resources';
+import { addToInventory, removeFromInventory } from '../economy/market';
+import { advanceQuestStep, getQuestMilestoneTrigger } from '../quests/quest-engine';
+import { awardSkillXp } from '../combat/combat-engine';
 
 export interface TickResult {
   characterId: string;
@@ -36,7 +42,7 @@ export function calculateTickInterval(character: Character, lastRichnessScore = 
   else if (hoursSinceLogin <= 48) absenceInterval = 5 * 60 * 60 * 1000;
   else return -1;
 
-  if (character.isNpc) return -1;
+  if (character.isNpc) return getNpcTickInterval();
 
   const narrativeMultiplier = getNarrativeTickMultiplier(lastRichnessScore);
   return Math.round(absenceInterval * narrativeMultiplier);
@@ -129,7 +135,7 @@ export async function executeCharacterTick(
     isAnchored = firstMilestone.importance !== 'minor';
   }
 
-  if (narrativeState.isRich) {
+  if (narrativeState.isRich && !character.isNpc) {
     const llmContext = buildLLMContext(character, chosen, narrativeState, location, activeEvents, []);
     const llmResult = await llm.generateDiaryEntry(llmContext);
 
@@ -179,6 +185,96 @@ export async function executeCharacterTick(
         isAnchored: diaryEntry.isAnchored,
       },
     });
+  }
+
+  // Economy: resource production and consumption
+  try {
+    await db.economy.createInventory(character.id);
+    const producedResources = getResourcesByProducerTask(task.id);
+    for (const res of producedResources) {
+      const quantity = task.category === 'work' ? 2 : 1;
+      await db.economy.updateInventory(character.id, res.id, quantity);
+    }
+    const consumedResources = getResourcesByConsumerTask(task.id);
+    for (const res of consumedResources) {
+      const inv = await db.economy.getInventory(character.id);
+      const hasItem = inv.items.find((i: any) => i.resourceId === res.id);
+      if (hasItem && hasItem.quantity >= 1) {
+        await db.economy.updateInventory(character.id, res.id, -1);
+      }
+    }
+    const baseGoldEarned = task.baseScore >= 8 ? 5 : task.baseScore >= 5 ? 3 : 1;
+    const inv = await db.economy.getInventory(character.id);
+    await db.economy.updateGold(character.id, inv.gold + baseGoldEarned);
+  } catch (e) {
+    // Economy processing is non-critical, continue
+  }
+
+  // Skill XP gain based on task
+  try {
+    await awardSkillXp(character.id, task.id, db);
+  } catch (e) {
+    // Skill XP is non-critical, continue
+  }
+
+  // Quest processing: advance active quests based on chosen task
+  try {
+    const activeQuests = await db.quests.getActive(character.id);
+    for (const quest of activeQuests) {
+      const advanced = await advanceQuestStep(quest, character, task.id, character.locationId, llm, db);
+      if (advanced && advanced.state === 'completed') {
+        const questTrigger = getQuestMilestoneTrigger(advanced);
+        if (questTrigger) {
+          milestone = {
+            id: crypto.randomUUID(),
+            characterId: character.id,
+            importance: advanced.tier >= 3 ? 'decisive' : advanced.tier >= 2 ? 'relevant' : 'minor',
+            title: `Missão Completa: ${advanced.title}`,
+            description: `${advanced.title} foi concluída com sucesso.`,
+            occurredAt: new Date(),
+            locationId: character.locationId,
+            locationName: location?.name || 'Desconhecido',
+            triggerType: questTrigger,
+            relatedCharacterIds: [],
+            relatedEventId: null,
+            diaryEntryId: diaryEntry?.id || null,
+            isActiveContext: true,
+            parentMilestoneId: null,
+            chainOrder: 0,
+          };
+          await db.milestones.create(milestone as any);
+        }
+      }
+    }
+  } catch (e) {
+    // Quest processing is non-critical, continue
+  }
+
+  // NPC-specific: relationship building and cross-character interaction
+  try {
+    const allActive = await db.character.getAllActive();
+    await buildNpcRelationships(character.id, character.locationId, db, allActive);
+
+    const nearby = allActive.filter((c) => c.locationId === character.locationId && c.id !== character.id && !c.isNpc);
+    if (nearby.length > 0) {
+      const interaction = await createInteractionEvent(character, nearby, db);
+      if (interaction) {
+        const outcome = interaction.outcomes.find((o) => o.characterId === character.id);
+        if (outcome) {
+          for (const [emotion, delta] of Object.entries(outcome.moodDelta)) {
+            const key = emotion as keyof typeof character.mood;
+            character.mood[key] = Math.max(0, Math.min(10, character.mood[key] + delta));
+          }
+        }
+      }
+    }
+
+    // NPC autonomous mood drift
+    if (character.isNpc) {
+      character.mood = processNpcMood(character.mood);
+    }
+  } catch (e) {
+    // NPC interaction is non-critical, continue
   }
 
   if (character.objective && character.objective.progressScore < 100) {

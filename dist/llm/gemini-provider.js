@@ -39,6 +39,10 @@ class GeminiProvider {
         const response = await this.callLLM(context);
         return this.parseJSON(response);
     }
+    async generateQuestBranch(context) {
+        const response = await this.callLLM(context);
+        return this.parseJSON(response);
+    }
 }
 exports.GeminiProvider = GeminiProvider;
 //# sourceMappingURL=gemini-provider.js.map
